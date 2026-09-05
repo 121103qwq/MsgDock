@@ -1,0 +1,17 @@
+{
+  "description": "P-256 ECDH, HKDF-SHA256, and AES-256-GCM interoperability vector",
+  "roomId": "room_test",
+  "messageId": "00000000-0000-4000-8000-000000000001",
+  "senderDeviceId": "phone_test",
+  "targetDeviceId": "win_test",
+  "privateA": "AQ",
+  "publicA": "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
+  "privateB": "Ag",
+  "publicB": "BHzyexiNA09-ilI4AwS1GsPAiWnid_IbNaYLSPxHZpl4B3dVENuO0EApPZrGn3Qw27p9reY86YIpngS3nSJ4c9E",
+  "sharedSecret": "fPJ7GI0DT36KUjgDBLUaw8CJaeJ38hs1pgtI_EdmmXg",
+  "hkdfKey": "uyxWz213tIPGxF4JXseW9uQb4tsLvfssqpnj5LuBbSk",
+  "nonce": "AAECAwQFBgcICQoL",
+  "aad": "xgy-sms-v2\n00000000-0000-4000-8000-000000000001\nroom_test\nphone_test\nwin_test",
+  "plaintext": "{\"v\":2,\"from\":\"10086\",\"text\":\"验证码 123456\",\"receivedAt\":1787400001000,\"sim\":1,\"device\":\"Android Test\"}",
+  "ciphertext": "mIvB_-dGCueU53_hyEYuBaxg4nfMGqN-IcgzkX-Xe3DsVKQ_J3QWJEDyjH9ah_k9z9NBgGKB5LkE3nxOnM7C2BFMQ6Jcop3-kXO-XQ5mTq3WTO-b_qRFDUxXDey8IPk3fprGDmIjzBtyY0ji8I9f83TN3ZDGL6mgRYxw"
+}

@@ -1,0 +1,33 @@
+# Local Android/Gradle state
+.gradle/
+local.properties
+**/build/
+
+# Cloudflare/Node local state
+cloudflare/node_modules/
+cloudflare/.wrangler/
+node_modules/
+.wrangler/
+
+# Built deliverables and local logs
+outputs/
+*.apk
+*.aab
+*.exe
+*.log
+*.tmp
+
+# Local credentials and signing material
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+*.jks
+*.keystore
+
+# Editor/OS files
+.idea/
+.vscode/
+*.iml
+Thumbs.db
+.DS_Store
