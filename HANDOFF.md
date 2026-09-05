@@ -12,7 +12,7 @@
 
 | Agent | 状态 | 本轮任务 | 独占文件/目录 | 开始时间 |
 |---|---|---|---|---|
-| Codex | IN_PROGRESS | 创建公开 MsgDock 仓库和预览 Release，网站添加下载入口 | web-ui/index.html、README.md、.gitignore、.github/workflows/build.yml、HANDOFF.md、outputs/MsgDock-v0.7.0 | 2026-09-05 |
+| Codex | DONE | 公开仓库、v0.7.0 预览 Release 和网页下载入口已发布 | 无 | 2026-09-05 |
 | Zcode | IDLE | 无 | 无 | - |
 
 认领规则：
@@ -28,7 +28,7 @@
 - Android：v0.7.0 / versionCode 10，本地 APK 候选已构建。
 - Windows：v0.7.0，本地无控制台单 EXE 候选已构建。
 - Relay：旧 `/v1/*` v0.6.0 兼容逻辑保留；本地 v0.7.0 候选增加 D1 账号 API 与 Web。
-- 已知部署：`https://msgdock.dpdns.org`，部署 ID `8f889ece-e9d7-4174-b7ef-1911c72f33ee`；旧 workers.dev 地址仍正常。
+- 已知部署：`https://msgdock.dpdns.org`，部署 ID `14f86902-a686-4227-b08e-57c8f2cf1b27`；旧 workers.dev 地址仍正常。
 - 上一基线验证：Android 25 个单元测试通过、lint 0 errors；Relay 测试/typecheck/dry-run 通过；Windows 测试、vet、GUI 构建曾通过。
 - 未完成：没有连接真实 Android/ADB 设备，因此恢复、锁屏、HyperOS 和真实 SMS 端到端仍需实机验收。
 
@@ -42,6 +42,18 @@
 | P2 | 设计 ACK 后云历史浏览/恢复 | 先只改 `DESIGN.md` | 用户确认需求与保留策略 |
 
 ## 交接记录
+
+### 2026-09-05 / Codex / DONE — GitHub 与网页下载
+
+- 新建公开仓库 https://github.com/121103qwq/MsgDock ，旧私有 codex-cloud-test 未修改。
+- 源码提交 `06a967e0f69ff6354796d629db6ccc75d71a3952` 位于 `release/msgdock-v0.7.0`；PR #1 未合并。预览 Release `v0.7.0` 标签和源码 ZIP 均指向此提交。
+- Release 只包含 Android debug APK、Windows x64 EXE、源码 ZIP 和 SHA256SUMS；四个资产的 GitHub SHA-256 与本地一致，匿名下载 HEAD 均为 200。
+- 网站未登录/登录后共用静态下载区，不增加下载 API、状态或依赖；Worker 仅静态 index.html 发生变化。
+- 验证：源码敏感文件排除、客户端哈希与版本、网页 JS 语法、Wrangler dry-run、线上 HTML（扣除 Cloudflare 自动注入统计脚本后）一致；主页和两条 health 地址 200，未登录 messages 401。
+- 更新旧手动构建工作流，Windows 测试移到 windows-latest；本轮没有运行 GitHub Actions，不宣称 CI 通过。保留旧代码现有尾随空白，未做无关格式化。
+- 消融审查：直接复用 GitHub Release 和现有静态网页，无新服务、路由或下载状态管理。
+- 遗留：真实手机锁屏/HyperOS/SMS 与 Toast 点击仍待验收；Android 为调试签名，Windows 未签名。
+- 共享开发仍使用本目录；`../work/msgdock-publish` 是发布快照 checkout，不作为第二开发工作区。安装包未因这次网页更新而重新构建。
 
 ### 2026-09-04 / Codex / DONE
 
