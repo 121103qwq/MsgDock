@@ -9,11 +9,6 @@ import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -638,30 +633,10 @@ public final class DeviceBackupManager {
     }
 
     private static HttpResult request(String method, String urlString, JSONObject body, String token) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(urlString).openConnection();
-        try {
-            byte[] data = body == null ? new byte[0] : body.toString().getBytes(StandardCharsets.UTF_8);
-            connection.setRequestMethod(method); connection.setConnectTimeout(8000); connection.setReadTimeout(10000);
-            connection.setRequestProperty("Accept", "application/json");
-            if (token != null && !token.isEmpty()) connection.setRequestProperty("Authorization", "Bearer " + token);
-            if (body != null) {
-                connection.setDoOutput(true); connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-                connection.setFixedLengthStreamingMode(data.length);
-                try (OutputStream output = connection.getOutputStream()) { output.write(data); }
-            }
-            int status = connection.getResponseCode();
-            return new HttpResult(status, readBody(status >= 400 ? connection.getErrorStream() : connection.getInputStream()));
-        } finally { connection.disconnect(); }
+        RelayHttp.Result result = RelayHttp.request(method, urlString, body, token, false);
+        return new HttpResult(result.status, result.body);
     }
 
-    private static String readBody(InputStream stream) throws Exception {
-        if (stream == null) return "";
-        try (InputStream input = stream; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[4096]; int n, total = 0;
-            while ((n = input.read(buffer)) >= 0) { total += n; if (total > 2 * 1024 * 1024) break; output.write(buffer, 0, n); }
-            return output.toString(StandardCharsets.UTF_8.name());
-        }
-    }
 
     private static String required(JSONObject object, String field) {
         String value = object.optString(field, "").trim();

@@ -27,6 +27,14 @@
             android:textColor="@color/accent_primary"
             android:layout_marginBottom="@dimen/spacing_xl"/>
 
+        <Button
+            android:id="@+id/btn_account_inbox"
+            style="@style/Button.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="本机收件箱 · 短信历史"
+            android:layout_marginBottom="@dimen/spacing_md"/>
+
         <!-- Account Sync Section -->
         <LinearLayout
             android:id="@+id/card_account"
@@ -45,9 +53,23 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="登录后，短信通过 HTTPS 保存到 MsgDock 账号，可在 Web 和 Windows 查看"
+                android:text="登录同一账号，可上传本机短信，也可接收其他手机同步的短信。接收不需要扫码配对或短信权限。"
                 style="@style/Text.Caption"
                 android:layout_marginBottom="@dimen/spacing_md"/>
+
+            <CheckBox
+                android:id="@+id/check_account_receive"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="接收账号短信（无需配对）"
+                android:textColor="@color/accent_primary"/>
+
+            <Button
+                android:id="@+id/btn_account_refresh"
+                style="@style/Button.Outlined"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="立即收取账号短信"/>
 
             <EditText
                 android:id="@+id/edit_account_username"
@@ -142,17 +164,30 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Relay URL"
+                android:text="主 Relay（优先，固定地址）"
                 style="@style/Text.Body"
                 android:layout_marginBottom="@dimen/spacing_xs"/>
 
-            <EditText
+            <TextView
                 android:id="@+id/edit_relay_url"
-                style="@style/EditText.Field"
+                style="@style/Text.Body"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="https://xgy-sms-relay.xgy2021sh.workers.dev"
-                android:inputType="textUri"
+                android:textIsSelectable="true"
+                android:layout_marginBottom="@dimen/spacing_md"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/Text.Body"
+                android:text="备用 Relay（连接失败时使用，固定地址）"/>
+
+            <TextView
+                android:id="@+id/text_backup_relay_url"
+                style="@style/Text.Body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textIsSelectable="true"
                 android:layout_marginBottom="@dimen/spacing_md"/>
 
             <LinearLayout
@@ -161,15 +196,6 @@
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:layout_marginBottom="@dimen/spacing_md">
-
-                <Button
-                    android:id="@+id/btn_save_relay"
-                    style="@style/Button.Primary"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="保存"
-                    android:layout_marginEnd="@dimen/spacing_sm"/>
 
                 <Button
                     android:id="@+id/btn_cloud_pair_sender"

@@ -1,4 +1,4 @@
-# MsgDock v0.7.0
+# MsgDock
 
 MsgDock 把 Android 收到的传统 SMS 同步到局域网 Windows、互联网 Windows 和 Web 收件箱。
 本版本是在原 Xgy LAN SMS 上的兼容升级：已有短信监听、锁屏前台服务、LAN 58123/58124、
@@ -7,8 +7,9 @@ MsgDock 把 Android 收到的传统 SMS 同步到局域网 Windows、互联网 W
 ## 使用与下载
 
 - 网页收件箱：[msgdock.dpdns.org](https://msgdock.dpdns.org)
-- [v0.7.0 预览版下载](https://github.com/121103qwq/MsgDock/releases/tag/v0.7.0)：Android APK、Windows x64 单 EXE、完整源码 ZIP 和 SHA-256 校验文件。
-- [公开源码与开发记录](https://github.com/121103qwq/MsgDock)。首次发布代码在 `release/msgdock-v0.7.0` 分支，实机验收完成前不自动合并。
+- [Android v0.7.4 预览版](https://github.com/121103qwq/MsgDock/releases/tag/v0.7.4)：APK、完整源码 ZIP 和 SHA-256 校验文件。
+- [Windows v0.7.0](https://github.com/121103qwq/MsgDock/releases/download/v0.7.0/MsgDock-Windows-v0.7.0.exe)：x64 单 EXE，本轮未更新 Windows。
+- [公开源码与开发记录](https://github.com/121103qwq/MsgDock)。当前发布快照在 `release/msgdock-v0.7.4` 分支，实机验收完成前不自动合并。
 
 这是预览版：Android 为调试签名，Windows 未做代码签名，锁屏/HyperOS 和真实短信端到端仍待实机验收。升级前请保留旧版备份；GitHub 下载在部分网络下可能较慢。
 
@@ -35,7 +36,16 @@ token 哈希，不保存明文凭据。
 旧 `/v1/*` 配对 Relay 继续使用 P-256 ECDH、HKDF-SHA256 和 AES-256-GCM，Cloudflare 只看到
 密文。旧链路不会因升级到 v0.7.0 失效，也不会与账号 token 混用。
 
-## Android v0.7.0
+## Android v0.7.4
+
+- 首页“本机收件箱”无需登录即可查看 LAN / 配对云端已保存短信；登录后也显示当前账号历史。不同账号隔离，多路副本合并显示，支持全文/验证码复制。
+- 列表按最近接收排列，显示设备、来源和时间，最多展示 200 条，旧历史不删除。
+- 在账号区勾选“接收账号短信（无需配对）”，登录与发送手机相同的账号即可接收；接收端无需短信权限。“立即收取”可手动刷新，后台会分页补齐。
+- 扫描等待附近设备授权并防止重复启动；接收状态反映实际监听结果。通知关闭仍保存历史，端口占用会明确报错。
+- 主 Relay 固定为 `https://msgdock.dpdns.org`，备用为 `https://xgy-sms-relay.xgy2021sh.workers.dev`；可安全重试的网络故障自动尝试备用，LAN 独立运行。注册/登录等结果不明的写入不自动重复提交。
+- APK：`outputs/MsgDock-v0.7.4/MsgDock-Android-v0.7.4-debug.apk`，versionCode 14，沿用旧调试签名。
+- 本轮通过 56 项 JVM 测试和独立 Android 14 模拟器的 5 项收件箱流程检查：v0.7.3 覆盖升级、LAN 实际 HTTP 接收/去重、全文/验证码复制、进程重开和本机账号隔离。账号隔离使用合成存储数据，未代替真实账号登录验收。
+- SDK 本机构建兜底：`./tools/build-android-local.ps1`，使用已有 SDK/JDK/测试依赖缓存。Gradle lint 因已记录的主机故障未运行；真实 SMS、锁屏、HyperOS 和后台保活仍待真机验收。
 
 - 收到 SMS 后，若已登录账号，先把消息和唯一 `client_message_id` 写入本地 Account Outbox。
 - LAN、账号云和旧加密云三条路径独立；任意一条失败不阻止另外两条。

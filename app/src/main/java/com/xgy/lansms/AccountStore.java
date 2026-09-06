@@ -23,7 +23,30 @@ public final class AccountStore {
     private static final String KEY_DEVICE_TOKEN = "device_token";
     private static final String KEY_DEVICE_NAME = "device_name";
     private static final String KEY_LAST_SEQ = "last_seq";
-    private static final Object LOCK = new Object();
+    static final Object LOCK = new Object();
+
+    public static boolean receiveEnabled(Context context) {
+        return prefs(context).getBoolean("receive_enabled", false);
+    }
+
+    public static void setReceiveEnabled(Context context, boolean enabled) {
+        synchronized (LOCK) {
+            if (!prefs(context).edit().putBoolean("receive_enabled", enabled).commit())
+                throw new IllegalStateException("无法保存账号接收设置");
+        }
+    }
+
+    public static boolean authRequired(Context context) {
+        return prefs(context).getBoolean("auth_required", false);
+    }
+
+    public static void requireLogin(Context context) {
+        prefs(context).edit().putBoolean("auth_required", true).commit();
+    }
+
+    public static void setReceiveStatus(Context context, String status) {
+        prefs(context).edit().putString("receive_status", status).apply();
+    }
 
     private AccountStore() {}
 
@@ -98,9 +121,9 @@ public final class AccountStore {
         if (sessionToken == null || sessionToken.trim().isEmpty()) {
             throw new IllegalArgumentException("账号登录响应缺少 session_token");
         }
+        synchronized (LOCK) {
         SharedPreferences p = prefs(context);
-        boolean accountChanged = !p.getString(KEY_USER_ID, "").isEmpty()
-                && !p.getString(KEY_USER_ID, "").equals(value(userId));
+        boolean accountChanged = !p.getString(KEY_USER_ID, "").equals(value(userId));
         SharedPreferences.Editor editor = p.edit()
                 .putString(KEY_USER_ID, value(userId))
                 .putString(KEY_USERNAME, value(username))
@@ -108,10 +131,12 @@ public final class AccountStore {
                 .putString(KEY_SESSION_TOKEN, sessionToken.trim())
                 .putLong(KEY_SESSION_EXPIRES_AT, Math.max(0L, expiresAt))
                 .remove(KEY_DEVICE_TOKEN)
+                .remove("auth_required").remove("receive_status")
                 .putString(KEY_DEVICE_NAME, android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL)
                 ;
-        if (accountChanged) editor.remove(KEY_DEVICE_ID);
-        editor.commit();
+        if (accountChanged) editor.remove(KEY_DEVICE_ID).remove(KEY_LAST_SEQ);
+        if (!editor.commit()) throw new IllegalStateException("无法保存账号登录信息");
+        }
     }
 
     public static void saveDeviceToken(Context context, String deviceToken, String deviceName) {
@@ -130,16 +155,20 @@ public final class AccountStore {
 
     public static void saveLastSeq(Context context, long seq) {
         if (seq < 0L) return;
-        prefs(context).edit().putLong(KEY_LAST_SEQ, seq).apply();
+        if (!prefs(context).edit().putLong(KEY_LAST_SEQ, seq).commit())
+            throw new IllegalStateException("无法保存收件进度");
     }
 
     /** Clears credentials, cursor and account-device identity for a clean logout. */
     public static void clear(Context context) {
+        synchronized (LOCK) {
         prefs(context).edit()
                 .remove(KEY_USER_ID).remove(KEY_USERNAME).remove(KEY_EMAIL)
                 .remove(KEY_SESSION_TOKEN).remove(KEY_SESSION_EXPIRES_AT)
                 .remove(KEY_DEVICE_TOKEN).remove(KEY_DEVICE_NAME).remove(KEY_DEVICE_ID).remove(KEY_LAST_SEQ)
+                .remove("auth_required").remove("receive_status").remove("receive_enabled")
                 .commit();
+        }
     }
 
     public static String statusText(Context context) {
@@ -153,6 +182,8 @@ public final class AccountStore {
         if (identity.isEmpty()) identity = "已登录账号";
         return "账号：" + identity + "\n"
                 + "设备同步：" + (device.isEmpty() ? "等待设备注册" : "已启用")
+                + "\n账号接收：" + (authRequired(context) ? "设备授权已失效，请重新登录"
+                    : receiveEnabled(context) ? p.getString("receive_status", "等待接收服务") : "未开启")
                 + "\n最近游标：" + lastSeq(context)
                 + "\n待上传：" + AccountOutboxStore.count(context);
     }

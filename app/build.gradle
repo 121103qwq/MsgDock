@@ -10,8 +10,8 @@ android {
         applicationId 'com.xgy.lansms'
         minSdk 26
         targetSdk 36
-        versionCode 10
-        versionName '0.7.0'
+        versionCode 14
+        versionName '0.7.4'
     }
 
     buildTypes {
@@ -28,4 +28,5 @@ android {
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303' // Real JSON on the host JVM; not bundled in the APK.
 }

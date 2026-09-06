@@ -3,12 +3,8 @@ package com.xgy.lansms;
 import android.content.Context;
 
 import org.json.JSONObject;
+import org.json.JSONArray;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -20,10 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Minimal native client for the account-sync API at /api/v1. */
 public final class AccountApi {
-    public static final String DEFAULT_API_URL = "https://msgdock.dpdns.org";
+    public static final String DEFAULT_API_URL = RelayHttp.PRIMARY;
     private static final String API_PREFIX = "/api/v1";
-    private static final String CLIENT_HEADER = "X-MsgDock-Client";
-    private static final String NATIVE_CLIENT = "native";
     private static final Object RETRY_LOCK = new Object();
     private static final ScheduledExecutorService RETRY_EXECUTOR =
             Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
@@ -34,6 +28,7 @@ public final class AccountApi {
                 }
             });
     private static final AtomicBoolean ACCOUNT_FLUSHING = new AtomicBoolean(false);
+    private static final AtomicBoolean ACCOUNT_POLLING = new AtomicBoolean(false);
     private static ScheduledFuture<?> retryFuture;
     private static long retryDueAt = -1L;
 
@@ -91,19 +86,21 @@ public final class AccountApi {
 
     public static void logout(Context context, Callback callback) {
         Context app = context.getApplicationContext();
+        String token;
+        synchronized (AccountStore.LOCK) {
+            token = AccountStore.sessionToken(app);
+            AccountOutboxStore.clear(app);
+            AccountStore.clear(app);
+        }
         CloudRelay.executor().execute(() -> {
             String message = "已退出账号";
             try {
-                String token = AccountStore.sessionToken(app);
                 if (!token.isEmpty()) {
                     HttpResult result = request("POST", endpoint("/auth/logout"), null, token, true);
                     if (result.status < 200 || result.status >= 300) message = "本地已退出账号（服务器响应 HTTP " + result.status + ")";
                 }
             } catch (Exception e) {
                 message = "本地已退出账号（服务器暂时不可达）";
-            } finally {
-                AccountOutboxStore.clear(app);
-                AccountStore.clear(app);
             }
             complete(callback, true, message);
         });
@@ -112,13 +109,16 @@ public final class AccountApi {
     /** Ensures a session-authenticated account has a separate device token. */
     public static boolean ensureDeviceSync(Context context) throws Exception {
         Context app = context.getApplicationContext();
+        if (AccountStore.authRequired(app)) throw new IllegalStateException("设备授权已失效，请重新登录");
         String session = AccountStore.sessionToken(app);
         if (session.isEmpty()) return false;
         JSONObject body = new JSONObject().put("id", AccountStore.ensureDeviceId(app))
                 .put("name", AccountStore.deviceName(app)).put("type", "android");
         HttpResult result = request("POST", endpoint("/devices"), body, session, false);
         if (result.status == 401 || result.status == 403) {
-            AccountStore.clearDeviceToken(app);
+            synchronized (AccountStore.LOCK) {
+                if (session.equals(AccountStore.sessionToken(app))) AccountStore.requireLogin(app);
+            }
             throw new IllegalStateException("账号会话已失效，请重新登录");
         }
         JSONObject response = successObject(result, "设备注册失败");
@@ -126,7 +126,10 @@ public final class AccountApi {
         String token = response.optString("device_token", "").trim();
         if (token.isEmpty()) throw new IllegalStateException("设备注册响应缺少 device_token");
         String name = device == null ? AccountStore.deviceName(app) : device.optString("name", AccountStore.deviceName(app));
-        AccountStore.saveDeviceToken(app, token, name);
+        synchronized (AccountStore.LOCK) {
+            if (!session.equals(AccountStore.sessionToken(app))) return false;
+            AccountStore.saveDeviceToken(app, token, name);
+        }
         return true;
     }
 
@@ -136,6 +139,7 @@ public final class AccountApi {
         int initial = AccountOutboxStore.count(app);
         if (initial < 0) return false;
         if (!AccountStore.hasAccount(app)) return initial == 0;
+        if (AccountStore.authRequired(app)) return true; // Wait for explicit login, not automatic re-enrollment.
         if (!ACCOUNT_FLUSHING.compareAndSet(false, true)) return true;
         try {
             try {
@@ -149,21 +153,35 @@ public final class AccountApi {
                 return false;
             }
             if (initial == 0) return true;
-            List<AccountOutboxStore.Entry> entries = AccountOutboxStore.due(app, System.currentTimeMillis(), 20);
+            String uploadUser;
+            String uploadToken;
+            List<AccountOutboxStore.Entry> entries;
+            synchronized (AccountStore.LOCK) {
+                uploadUser = AccountStore.userId(app);
+                uploadToken = AccountStore.deviceToken(app);
+                entries = AccountOutboxStore.due(app, System.currentTimeMillis(), 20);
+            }
             for (AccountOutboxStore.Entry entry : entries) {
+                if (!uploadUser.equals(AccountStore.userId(app)) || !uploadToken.equals(AccountStore.deviceToken(app))) return false;
                 try {
                     JSONObject body = AccountOutboxStore.payload(entry.clientMessageId, entry.sender,
                             entry.body, entry.receivedAt);
                     HttpResult result = request("POST", endpoint("/messages"), body,
-                            AccountStore.deviceToken(app), false);
+                            uploadToken, false);
+                    synchronized (AccountStore.LOCK) {
+                    if (!uploadUser.equals(AccountStore.userId(app)) || !uploadToken.equals(AccountStore.deviceToken(app))) return false;
                     if (result.status >= 200 && result.status < 300) {
                         AccountOutboxStore.remove(app, entry.clientMessageId);
                     } else {
-                        if (result.status == 401 || result.status == 403) AccountStore.clearDeviceToken(app);
+                        if (result.status == 401 || result.status == 403) AccountStore.requireLogin(app);
                         AccountOutboxStore.markFailure(app, entry.clientMessageId, httpError(result));
                     }
+                    }
                 } catch (Exception e) {
-                    AccountOutboxStore.markFailure(app, entry.clientMessageId, errorMessage(e));
+                    synchronized (AccountStore.LOCK) {
+                        if (uploadUser.equals(AccountStore.userId(app)) && uploadToken.equals(AccountStore.deviceToken(app)))
+                            AccountOutboxStore.markFailure(app, entry.clientMessageId, errorMessage(e));
+                    }
                 }
             }
             return AccountOutboxStore.count(app) == 0;
@@ -180,6 +198,7 @@ public final class AccountApi {
     public static void scheduleOutboxFlush(Context context) {
         Context app = context.getApplicationContext();
         if (!AccountStore.hasAccount(app)) return;
+        if (AccountStore.authRequired(app)) return;
         if (AccountOutboxStore.count(app) <= 0) return;
         long next = AccountOutboxStore.nextAttemptAt(app);
         if (next < 0L) return;
@@ -228,7 +247,74 @@ public final class AccountApi {
         return AccountStore.statusText(context);
     }
 
+    /** One bounded HTTPS page; the foreground service schedules subsequent pages independently of LAN. */
+    public static boolean pollInbox(Context context) {
+        Context app = context.getApplicationContext();
+        if (!AccountStore.receiveEnabled(app) || !AccountStore.hasAccount(app)) return true;
+        if (AccountStore.authRequired(app)) return false;
+        if (!ACCOUNT_POLLING.compareAndSet(false, true)) return true;
+        String user = AccountStore.userId(app);
+        String token = "";
+        try {
+            if (!AccountStore.hasDeviceToken(app) && !ensureDeviceSync(app)) return false;
+            token = AccountStore.deviceToken(app);
+            long after = AccountStore.lastSeq(app);
+            JSONObject response = successObject(request("GET", endpoint("/messages?after=" + after + "&limit=100"),
+                    null, token, false), "接收失败");
+            JSONArray rows = response.getJSONArray("messages");
+            validatePage(rows, after);
+            synchronized (AccountStore.LOCK) {
+                if (!sameReceiver(app, user, token)) return true; // Discard late responses after logout/account switch.
+                for (int i = 0; i < rows.length(); i++) {
+                    JSONObject sms = accountMessage(user, AccountStore.deviceId(app), rows.getJSONObject(i));
+                    if (!CloudInboxStore.acceptAccount(app.getFilesDir(), sms))
+                        throw new IllegalStateException("无法保存账号收件箱，稍后重试");
+                    // History and pending notification must be durable BEFORE committing the cursor.
+                    AccountStore.saveLastSeq(app, sms.getLong("seq"));
+                }
+                AccountStore.setReceiveStatus(app, "已连接 · 收件进度 " + AccountStore.lastSeq(app));
+            }
+            return true;
+        } catch (Exception e) {
+            synchronized (AccountStore.LOCK) {
+                if (sameReceiver(app, user, token)) {
+                    if (e instanceof ApiException && (((ApiException)e).status == 401 || ((ApiException)e).status == 403))
+                        AccountStore.requireLogin(app);
+                    AccountStore.setReceiveStatus(app, "暂未连接，自动重试");
+                }
+            }
+            return false;
+        } finally { ACCOUNT_POLLING.set(false); }
+    }
+
+    private static boolean sameReceiver(Context context, String user, String token) {
+        return AccountStore.receiveEnabled(context) && !user.isEmpty()
+                && user.equals(AccountStore.userId(context)) && token.equals(AccountStore.deviceToken(context));
+    }
+
+    static void validatePage(JSONArray rows, long after) throws Exception {
+        for (int i = 0; i < rows.length(); i++) {
+            long seq = rows.getJSONObject(i).getLong("seq");
+            if (seq <= after) throw new IllegalArgumentException("收件序号无效");
+            after = seq;
+        }
+    }
+
+    static JSONObject accountMessage(String user, String deviceId, JSONObject row) throws Exception {
+        String uuid = row.getString("client_message_id");
+        if (user.isEmpty() || uuid.isEmpty() || row.getLong("seq") <= 0) throw new IllegalArgumentException("收件标识无效");
+        JSONObject device = row.optJSONObject("source_device");
+        boolean own = device != null && !deviceId.isEmpty() && deviceId.equals(device.optString("id"));
+        return new JSONObject().put("id", "account:" + user + ":" + row.getLong("seq"))
+                .put("deliveryId", uuid).put("accountUserId", user).put("source", "account")
+                .put("seq", row.getLong("seq")).put("from", row.getString("sender"))
+                .put("text", row.getString("body")).put("receivedAt", row.getLong("received_at"))
+                .put("device", device == null ? "已移除设备" : device.optString("name", "Android"))
+                .put("silent", own);
+    }
+
     private static void saveAuthentication(Context context, JSONObject response) {
+        synchronized (AccountStore.LOCK) {
         JSONObject user = response.optJSONObject("user");
         String session = response.optString("session_token", "").trim();
         if (session.isEmpty()) throw new IllegalStateException("账号响应缺少 session_token");
@@ -244,38 +330,20 @@ public final class AccountApi {
                 user == null ? "" : user.optString("username", ""),
                 user == null ? "" : user.optString("email", ""),
                 session, response.optLong("expires_at", 0L));
+        }
     }
 
     private static JSONObject successObject(HttpResult result, String prefix) throws Exception {
         if (result.status < 200 || result.status >= 300) {
-            throw new IllegalStateException(prefix + " HTTP " + result.status
+            throw new ApiException(result.status, prefix + " HTTP " + result.status
                     + (result.body.isEmpty() ? "" : "：" + apiError(result.body)));
         }
         return result.body.trim().isEmpty() ? new JSONObject() : new JSONObject(result.body);
     }
 
-    private static HttpResult request(String method, String urlString, JSONObject body,
-                                      String bearer, boolean nativeAuth) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(urlString).openConnection();
-        try {
-            byte[] data = body == null ? new byte[0] : body.toString().getBytes(StandardCharsets.UTF_8);
-            connection.setRequestMethod(method);
-            connection.setConnectTimeout(8_000);
-            connection.setReadTimeout(10_000);
-            connection.setRequestProperty("Accept", "application/json");
-            if (nativeAuth) connection.setRequestProperty(CLIENT_HEADER, NATIVE_CLIENT);
-            if (bearer != null && !bearer.isEmpty()) connection.setRequestProperty("Authorization", "Bearer " + bearer);
-            if (body != null) {
-                connection.setDoOutput(true);
-                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-                connection.setFixedLengthStreamingMode(data.length);
-                try (OutputStream output = connection.getOutputStream()) { output.write(data); }
-            }
-            int status = connection.getResponseCode();
-            return new HttpResult(status, readBody(status >= 400 ? connection.getErrorStream() : connection.getInputStream()));
-        } finally {
-            connection.disconnect();
-        }
+    private static HttpResult request(String method, String urlString, JSONObject body, String token, boolean nativeAuth) throws Exception {
+        RelayHttp.Result result = RelayHttp.request(method, urlString, body, token, nativeAuth);
+        return new HttpResult(result.status, result.body);
     }
 
     private static String endpoint(String path) {
@@ -298,19 +366,6 @@ public final class AccountApi {
                 + (result.body.isEmpty() ? "" : "：" + apiError(result.body));
     }
 
-    private static String readBody(InputStream stream) throws Exception {
-        if (stream == null) return "";
-        try (InputStream input = stream; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[4096];
-            int n, total = 0;
-            while ((n = input.read(buffer)) >= 0) {
-                total += n;
-                if (total > 2 * 1024 * 1024) break;
-                output.write(buffer, 0, n);
-            }
-            return output.toString(StandardCharsets.UTF_8.name());
-        }
-    }
 
     private static void require(String value, String label) {
         if (value == null || value.trim().isEmpty()) throw new IllegalArgumentException(label + "不能为空");
@@ -337,5 +392,10 @@ public final class AccountApi {
             this.status = status;
             this.body = body == null ? "" : body;
         }
+    }
+
+    private static final class ApiException extends Exception {
+        final int status;
+        ApiException(int status, String message) { super(message); this.status = status; }
     }
 }

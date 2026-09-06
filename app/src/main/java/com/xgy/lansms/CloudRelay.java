@@ -6,11 +6,6 @@ import android.net.NetworkCapabilities;
 import android.os.Build;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -26,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Cloudflare relay v2 client. The relay only receives encrypted envelopes. */
 public final class CloudRelay {
-    public static final String DEFAULT_RELAY_URL = "https://xgy-sms-relay.xgy2021sh.workers.dev";
+    public static final String DEFAULT_RELAY_URL = RelayHttp.PRIMARY;
     private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
     private static final AtomicBoolean FLUSHING = new AtomicBoolean(false);
     private static final AtomicBoolean POLLING = new AtomicBoolean(false);
@@ -316,7 +311,7 @@ public final class CloudRelay {
                 .append(link.peerName.isEmpty() ? "" : "，" + link.peerName).append("）\n");
         int pending = CloudOutboxStore.count(app);
         int deadLetters = CloudOutboxStore.deadLetterCount(app);
-        out.append("Relay：").append(TargetStore.prefs(app).getString("cloud_relay_url", DEFAULT_RELAY_URL)).append("\n")
+        out.append("主 Relay：").append(RelayHttp.PRIMARY).append("\n备用 Relay：").append(RelayHttp.BACKUP).append("\n")
                 .append("网络：").append(hasNetwork(app) ? "在线" : "离线，等待恢复").append("\n")
                 .append("待发送：").append(pending < 0 ? "读取失败（原文件已保留）" : pending)
                 .append("\n死信：").append(deadLetters < 0 ? "读取失败" : deadLetters);
@@ -352,17 +347,10 @@ public final class CloudRelay {
     }
 
     private static HttpResult requestJson(String method, String urlString, JSONObject body, String token) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(urlString).openConnection();
-        try {
-            byte[] data = body == null ? new byte[0] : body.toString().getBytes(StandardCharsets.UTF_8);
-            connection.setRequestMethod(method); connection.setConnectTimeout(8000); connection.setReadTimeout(10000);
-            connection.setRequestProperty("Accept", "application/json"); if (token != null && !token.isEmpty()) connection.setRequestProperty("Authorization", "Bearer " + token);
-            if (body != null) { connection.setDoOutput(true); connection.setRequestProperty("Content-Type", "application/json; charset=utf-8"); connection.setFixedLengthStreamingMode(data.length); try (OutputStream output = connection.getOutputStream()) { output.write(data); } }
-            int status = connection.getResponseCode(); return new HttpResult(status, readBody(status >= 400 ? connection.getErrorStream() : connection.getInputStream()));
-        } finally { connection.disconnect(); }
+        RelayHttp.Result result = RelayHttp.request(method, urlString, body, token, false);
+        return new HttpResult(result.status, result.body);
     }
 
-    private static String readBody(InputStream stream) throws Exception { if (stream == null) return ""; try (InputStream input = stream; ByteArrayOutputStream output = new ByteArrayOutputStream()) { byte[] buffer = new byte[4096]; int n, total = 0; while ((n = input.read(buffer)) >= 0) { total += n; if (total > 2 * 1024 * 1024) break; output.write(buffer, 0, n); } return output.toString(StandardCharsets.UTF_8.name()); } }
     private static String normalizeRelayUrl(String value) { String url = value == null || value.trim().isEmpty() ? DEFAULT_RELAY_URL : value.trim(); while (url.endsWith("/")) url = url.substring(0, url.length() - 1); if (!CloudConfigStore.isSecureRelayUrl(url)) throw new IllegalArgumentException("Relay URL 必须使用 HTTPS，且不能包含用户名或密码"); return url; }
     private static String enc(String value) throws Exception { return URLEncoder.encode(value, StandardCharsets.UTF_8.name()); }
     private static String required(JSONObject object, String name) { String value = object.optString(name, "").trim(); if (value.isEmpty()) throw new IllegalStateException("云配对响应缺少 " + name); return value; }

@@ -181,6 +181,15 @@ const MAX_DEVICE_BACKUPS = 1000;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.protocol === "http:") {
+      url.protocol = "https:";
+      if (request.method === "GET" || request.method === "HEAD") {
+        return Response.redirect(url.toString(), 308);
+      }
+      // Never process credentials or replay an unsafe HTTP POST via a redirect.
+      return jsonResponse({ error: "https_required" }, 400);
+    }
     if (!isAllowedOrigin(request, env)) {
       return withCors(jsonResponse({ error: "cors_forbidden" }, 403), request, env);
     }
@@ -188,7 +197,6 @@ export default {
       return withCors(new Response(null, { status: 204 }), request, env);
     }
 
-    const url = new URL(request.url);
     if (url.pathname === "/health" || url.pathname === "/v1/health") {
       return withCors(jsonResponse({
         ok: true,
@@ -202,7 +210,7 @@ export default {
     }
     if (!url.pathname.startsWith("/v1/")) {
       if (env.ASSETS && (request.method === "GET" || request.method === "HEAD")) {
-        return env.ASSETS.fetch(request);
+        return withCors(await env.ASSETS.fetch(request), request, env);
       }
       return withCors(jsonResponse({ error: "not_found" }, 404), request, env);
     }
@@ -1049,14 +1057,16 @@ function isAllowedOrigin(request: Request, env: Env): boolean {
     return true;
   }
   const configured = allowedOrigins(env);
-  return configured.includes(origin);
+  const url = new URL(request.url);
+  // Static Assets can serve this UI on more than one hostname. HTTPS same-origin
+  // requests are not cross-origin and must not depend on a hard-coded hostname.
+  return (url.protocol === "https:" && origin === url.origin) || configured.includes(origin);
 }
 
 function withCors(response: Response, request: Request, env: Env): Response {
   const headers = new Headers(response.headers);
   const requestOrigin = request.headers.get("origin");
-  const configured = allowedOrigins(env);
-  if (requestOrigin && configured.includes(requestOrigin)) {
+  if (requestOrigin && isAllowedOrigin(request, env)) {
     headers.set("access-control-allow-origin", requestOrigin);
   } else {
     headers.delete("access-control-allow-origin");
@@ -1065,6 +1075,7 @@ function withCors(response: Response, request: Request, env: Env): Response {
   headers.set("access-control-allow-headers", "Authorization, Content-Type, X-MsgDock-Client");
   headers.set("access-control-max-age", "86400");
   headers.append("vary", "Origin");
+  if (new URL(request.url).protocol === "https:") headers.set("strict-transport-security", "max-age=15552000");
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 

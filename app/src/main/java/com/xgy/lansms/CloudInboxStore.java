@@ -10,6 +10,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -21,6 +22,63 @@ public final class CloudInboxStore {
     private static final long SEEN_RETENTION_MS = 30L * 24L * 60L * 60L * 1000L;
     private static final Set<String> DELIVERY_CLAIMS = new HashSet<>();
     private CloudInboxStore() {}
+
+    /** Account history is scoped by user+seq; deliveryId keeps LAN/cloud notification de-duplication. */
+    static boolean acceptAccount(File dir, JSONObject sms) {
+        synchronized (LOCK) {
+            String id = sms.optString("id", "");
+            if (id.isEmpty() || sms.optString("accountUserId", "").isEmpty()) return false;
+            File file = new File(dir, INBOX);
+            if (file.isFile()) {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        try { if (id.equals(new JSONObject(line).optString("id"))) return true; }
+                        catch (org.json.JSONException ignored) { }
+                    }
+                } catch (Exception e) { return false; }
+            }
+            return appendLine(file, sms.toString());
+        }
+    }
+
+    /** Local LAN/paired-cloud history plus the current account, newest arrival first. */
+    static List<JSONObject> localHistory(File dir, String user, int limit) throws Exception {
+        synchronized (LOCK) {
+            List<JSONObject> out = new ArrayList<>();
+            if (limit <= 0) return out;
+            File file = new File(dir, INBOX);
+            if (!file.isFile()) return out;
+            LinkedHashMap<String, JSONObject> recent = new LinkedHashMap<>();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    try {
+                        JSONObject record = new JSONObject(line);
+                        // Filter before de-duplication: another account must not hide or replace a visible row.
+                        if (!accountVisible(record, user, true)) continue;
+                        String id = deliveryId(record);
+                        if (id.isEmpty()) continue;
+                        recent.remove(id);
+                        recent.put(id, record);
+                        if (recent.size() > limit) recent.remove(recent.keySet().iterator().next());
+                    } catch (org.json.JSONException ignored) { }
+                }
+            }
+            out.addAll(recent.values());
+            java.util.Collections.reverse(out);
+            return out;
+        }
+    }
+
+    static boolean accountVisible(JSONObject sms, String user, boolean enabled) {
+        String owner = sms.optString("accountUserId", "");
+        return owner.isEmpty() || (enabled && !user.isEmpty() && owner.equals(user));
+    }
+
+    public static String deliveryId(JSONObject sms) {
+        return sms.optString("deliveryId", sms.optString("id", ""));
+    }
 
     /**
      * Persists a LAN message before notification. A pending record is returned
@@ -76,6 +134,7 @@ public final class CloudInboxStore {
                 while ((line = reader.readLine()) != null) {
                     try {
                         JSONObject record = new JSONObject(line);
+                        if (!accountVisible(record, AccountStore.userId(context), AccountStore.receiveEnabled(context))) continue;
                         String id = record.optString("id", "");
                         boolean delivered = record.optLong("deliveredAt", 0L) > 0L
                                 || record.optLong("notifiedAt", 0L) > 0L;
@@ -199,7 +258,9 @@ public final class CloudInboxStore {
             while ((line = reader.readLine()) != null) {
                 try {
                     JSONObject record = new JSONObject(line);
-                    if (id.equals(record.optString("id", ""))
+                    if ((id.equals(record.optString("id", ""))
+                            || (id.equals(record.optString("deliveryId", ""))
+                                && accountVisible(record, AccountStore.userId(context), true)))
                             && (record.optLong("deliveredAt", 0L) > 0L || record.optLong("notifiedAt", 0L) > 0L)) return true;
                 } catch (Exception ignored) { }
             }
@@ -286,9 +347,14 @@ public final class CloudInboxStore {
     }
 
     private static boolean appendLine(File file, String line) {
-        try (FileOutputStream output = new FileOutputStream(file, true)) {
+        try (java.io.RandomAccessFile output = new java.io.RandomAccessFile(file, "rw")) {
+            long length = output.length();
+            if (length > 0) {
+                output.seek(length - 1);
+                if (output.read() != '\n') output.write('\n'); // Keep a crash-truncated tail from swallowing the retry.
+            }
+            output.seek(output.length());
             output.write((line + "\n").getBytes(StandardCharsets.UTF_8));
-            output.flush();
             output.getFD().sync();
             return true;
         } catch (Exception ignored) { return false; }

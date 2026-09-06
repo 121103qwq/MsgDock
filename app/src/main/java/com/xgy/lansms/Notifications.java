@@ -27,7 +27,8 @@ public final class Notifications {
     public static Notification serviceNotification(Context c, String code) {
         ensureChannels(c);
         int cloudReceivers = CloudConfigStore.receiverLinks(c).size();
-        String cloud = cloudReceivers == 0 ? "云接收未配对" : "云接收 " + cloudReceivers + " 条链路";
+        String cloud = AccountStore.receiveEnabled(c) && AccountStore.hasAccount(c) ? "账号接收已开启"
+                : cloudReceivers == 0 ? "云接收未配对" : "云接收 " + cloudReceivers + " 条链路";
         return new Notification.Builder(c, SERVICE_CH)
                 .setSmallIcon(android.R.drawable.stat_notify_sync)
                 .setContentTitle("MsgDock 接收端运行中")
@@ -53,6 +54,8 @@ public final class Notifications {
                 .setContentText(text)
                 .setStyle(new Notification.BigTextStyle().bigText(text))
                 .setSubText(device)
+                .setContentIntent(android.app.PendingIntent.getActivity(c, 0,
+                    new android.content.Intent(c, MainActivity.class), android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT))
                 .setAutoCancel(true);
         Matcher m = Pattern.compile("(?<!\\d)(\\d{4,8})(?!\\d)").matcher(text == null ? "" : text);
         if (m.find()) b.setContentInfo("验证码 " + m.group(1));

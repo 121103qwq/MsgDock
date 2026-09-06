@@ -24,8 +24,10 @@ public class ReceiverService extends Service {
     private static final Object MIGRATION_LOCK = new Object();
     private static volatile boolean processRunning;
     private static volatile boolean startRequested;
+    private static volatile String runtimeStatus = "未启动";
     private volatile boolean running;
     private ServerSocket server;
+    private final Object accountWake = new Object();
     private android.net.ConnectivityManager.NetworkCallback accountNetworkCallback;
     private final ExecutorService pool = Executors.newCachedThreadPool();
 
@@ -36,10 +38,12 @@ public class ReceiverService extends Service {
         String code = TargetStore.ensurePairCode(this);
         startForegroundCompat(code);
         running = true;
+        runtimeStatus = "服务已启动，正在开启局域网接收…";
         registerAccountNetworkCallback();
         pool.execute(this::httpLoop);
         pool.execute(this::announceLoop);
         pool.execute(this::cloudLoop);
+        pool.execute(this::accountLoop);
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -61,9 +65,12 @@ public class ReceiverService extends Service {
     }
 
     @Override public void onDestroy() {
-        running = false;
-        processRunning = false;
-        startRequested = false;
+        synchronized (START_LOCK) {
+            running = false;
+            processRunning = false;
+            startRequested = false;
+            runtimeStatus = "未启动";
+        }
         unregisterAccountNetworkCallback();
         try { if (server != null) server.close(); } catch (Exception ignored) {}
         pool.shutdownNow();
@@ -88,6 +95,7 @@ public class ReceiverService extends Service {
         synchronized (START_LOCK) {
             if (processRunning || startRequested) return true;
             startRequested = true;
+            runtimeStatus = "正在启动接收…";
             Intent intent = new Intent(app, ReceiverService.class);
             try {
                 if (android.os.Build.VERSION.SDK_INT >= 26) app.startForegroundService(intent);
@@ -95,6 +103,7 @@ public class ReceiverService extends Service {
                 return true;
             } catch (RuntimeException e) {
                 startRequested = false;
+                runtimeStatus = "启动失败，请重试或检查后台限制";
                 android.util.Log.e("XgyLanSms", "Unable to start receiver service", e);
                 return false;
             }
@@ -103,6 +112,11 @@ public class ReceiverService extends Service {
 
     public static boolean isRunningOrStarting() {
         return processRunning || startRequested;
+    }
+
+    /** Live service/socket state; the saved enabled preference is only user intent. */
+    public static String statusText() {
+        return runtimeStatus;
     }
 
     /** One-time migration for installs that already had a cloud receiver link. */
@@ -137,12 +151,20 @@ public class ReceiverService extends Service {
             server = new ServerSocket();
             server.setReuseAddress(true);
             server.bind(new InetSocketAddress(HTTP_PORT));
+            synchronized (START_LOCK) {
+                if (running) runtimeStatus = "✓ 运行中（LAN 已就绪）";
+            }
             while (running) {
                 Socket s = server.accept();
                 pool.execute(() -> handle(s));
             }
         } catch (Exception e) {
-            if (running) android.util.Log.e("XgyLanSms", "HTTP server stopped", e);
+            synchronized (START_LOCK) {
+                if (running) {
+                    runtimeStatus = "LAN 监听失败；账号/云接收按各自设置继续";
+                    android.util.Log.e("XgyLanSms", "HTTP server stopped", e);
+                }
+            }
         }
     }
 
@@ -333,6 +355,7 @@ public class ReceiverService extends Service {
     }
 
     private void triggerAccountSync() {
+        synchronized (accountWake) { accountWake.notifyAll(); }
         AccountApi.scheduleOutboxFlush(this);
         CloudSyncJobService.schedule(this);
         android.content.Context app = getApplicationContext();
@@ -344,10 +367,14 @@ public class ReceiverService extends Service {
         for (JSONObject sms : CloudInboxStore.pending(this)) {
             String id = sms.optString("id", "");
             if (id.isEmpty()) continue;
-            if (!CloudInboxStore.claim(id)) continue;
+            String deliveryId = CloudInboxStore.deliveryId(sms);
+            if (!CloudInboxStore.claim(deliveryId)) continue;
             try {
+                synchronized (AccountStore.LOCK) {
+                if (!CloudInboxStore.accountVisible(sms, AccountStore.userId(this), AccountStore.receiveEnabled(this))) continue;
                 if (CloudInboxStore.isSeen(this, id)) continue;
-                if (CloudInboxStore.isDelivered(this, id)) {
+                if (sms.optBoolean("silent", false) || CloudInboxStore.isDelivered(this, deliveryId)) {
+                    if (!CloudInboxStore.markDelivered(this, id)) continue;
                     CloudInboxStore.markSeen(this, id, sms.optString("source", "unknown"));
                     continue;
                 }
@@ -355,11 +382,26 @@ public class ReceiverService extends Service {
                         sms.optString("text", ""), sms.optString("device", "Android"));
                 if (notified && CloudInboxStore.markDelivered(this, id)
                         && CloudInboxStore.markSeen(this, id, sms.optString("source", "unknown"))) delivered++;
+                }
             } finally {
-                CloudInboxStore.release(id);
+                CloudInboxStore.release(deliveryId);
             }
         }
         return delivered;
+    }
+
+    private void accountLoop() {
+        long delay = 3000L;
+        while (running) {
+            boolean success = AccountApi.pollInbox(this);
+            replayPendingNotifications();
+            delay = success ? 3000L : Math.min(300_000L, Math.max(3000L, delay) * 2L);
+            synchronized (accountWake) {
+                if (!running) return;
+                try { accountWake.wait(delay); }
+                catch (InterruptedException e) { return; }
+            }
+        }
     }
 
     private static long idleDelay(long previous) {

@@ -14,15 +14,31 @@ import android.widget.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
+    private static final int REQUEST_SMS = 10;
+    private static final int REQUEST_NOTIFICATIONS = 11;
+    private static final int REQUEST_NEARBY = 12;
+    private static final int REQUEST_SCAN = 13;
+    private int pendingPermission;
+    private boolean scanning;
+    private Thread scanThread;
     // UI references
-    private EditText relayUrlEdit;
+    private TextView relayUrlEdit;
     private TextView cloudStatusText, machineCodeText, backupStatusText;
     private TextView smsPermissionText, nearbyPermissionText, receiverStatusText;
     private TextView accountStatusText;
     private EditText accountUsernameEdit, accountEmailEdit, accountPasswordEdit;
+    private CheckBox accountReceiveCheck;
+    private final Handler accountUiHandler = new Handler(Looper.getMainLooper());
+    private final Runnable accountUiRefresh = new Runnable() {
+        @Override public void run() {
+            if (!activityAlive()) return;
+            accountStatusText.setText(AccountApi.statusText(MainActivity.this));
+            receiverStatusText.setText(receiverStatus());
+            accountUiHandler.postDelayed(this, 3000L);
+        }
+    };
     private LinearLayout cloudLinksContainer, targetsContainer;
     private Button cloudPairSenderBtn, cloudPairReceiverBtn;
     private View nearbyPermissionRow;
@@ -31,6 +47,7 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
+        if (b != null) pendingPermission = b.getInt("pending_permission", 0);
         setContentView(R.layout.activity_main);
         
         Notifications.ensureChannels(this);
@@ -55,6 +72,69 @@ public class MainActivity extends Activity {
         super.onResume();
         ReceiverService.ensureStarted(this);
         render();
+        accountUiHandler.post(accountUiRefresh);
+    }
+
+    @Override protected void onPause() {
+        accountUiHandler.removeCallbacks(accountUiRefresh);
+        super.onPause();
+    }
+
+    @Override protected void onSaveInstanceState(Bundle state) {
+        state.putInt("pending_permission", pendingPermission);
+        super.onSaveInstanceState(state);
+    }
+
+    @Override protected void onDestroy() {
+        if (scanThread != null) scanThread.interrupt();
+        super.onDestroy();
+    }
+
+    private void askPermission(String permission, int requestCode) {
+        if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+            render();
+            return;
+        }
+        if (pendingPermission != 0) return;
+        pendingPermission = requestCode;
+        requestPermissions(new String[]{permission}, requestCode);
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode != pendingPermission) return;
+        pendingPermission = 0;
+        if (!activityAlive()) return;
+        if (results.length == 0) {
+            Toast.makeText(this, "已取消权限申请，请在需要时重试", Toast.LENGTH_SHORT).show();
+            render();
+            return;
+        }
+        boolean granted = results[0] == PackageManager.PERMISSION_GRANTED;
+        if (requestCode == REQUEST_NOTIFICATIONS) {
+            // Notification denial must not prevent receiving or saving history.
+            startReceiverNow();
+            if (!granted) Toast.makeText(this, "通知未开启，短信仍会保存在本机历史；可在应用设置中开启通知", Toast.LENGTH_LONG).show();
+        } else if (requestCode == REQUEST_SCAN && granted) {
+            scanLan();
+        } else if (!granted) {
+            String permission = requestCode == REQUEST_SMS ? Manifest.permission.RECEIVE_SMS : Manifest.permission.NEARBY_WIFI_DEVICES;
+            String explanation = requestCode == REQUEST_SMS
+                ? "短信权限未允许，无法监听本机新短信；接收其他设备的短信不受影响。"
+                : "附近设备权限未允许，本次未开始扫描。也可以手动添加接收端 IP。";
+            AlertDialog.Builder dialog = new AlertDialog.Builder(this).setTitle("权限未开启")
+                .setMessage(explanation).setNegativeButton("知道了", null);
+            if (!shouldShowRequestPermissionRationale(permission)) {
+                dialog.setPositiveButton("应用设置", (d, w) -> openAppSettings());
+            }
+            dialog.show();
+        }
+        render();
+    }
+
+    private void openAppSettings() {
+        startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.parse("package:" + getPackageName())));
     }
 
     private void initViews() {
@@ -69,6 +149,8 @@ public class MainActivity extends Activity {
         accountUsernameEdit = findViewById(R.id.edit_account_username);
         accountEmailEdit = findViewById(R.id.edit_account_email);
         accountPasswordEdit = findViewById(R.id.edit_account_password);
+        accountReceiveCheck = findViewById(R.id.check_account_receive);
+        accountReceiveCheck.setChecked(AccountStore.receiveEnabled(this));
         cloudLinksContainer = findViewById(R.id.container_cloud_links);
         targetsContainer = findViewById(R.id.container_targets);
         cloudPairSenderBtn = findViewById(R.id.btn_cloud_pair_sender);
@@ -77,7 +159,6 @@ public class MainActivity extends Activity {
     }
 
     private void setupListeners() {
-        findViewById(R.id.btn_save_relay).setOnClickListener(v -> saveRelayUrl());
         cloudPairSenderBtn.setOnClickListener(v -> cloudPairSender());
         cloudPairReceiverBtn.setOnClickListener(v -> cloudPairReceiver());
         
@@ -86,9 +167,9 @@ public class MainActivity extends Activity {
         findViewById(R.id.btn_delete_device).setOnClickListener(v -> confirmDeleteDevice());
         
         findViewById(R.id.btn_request_sms).setOnClickListener(v -> 
-            requestPermissions(new String[]{Manifest.permission.RECEIVE_SMS}, 10));
+            askPermission(Manifest.permission.RECEIVE_SMS, REQUEST_SMS));
         findViewById(R.id.btn_request_nearby).setOnClickListener(v -> 
-            requestPermissions(new String[]{Manifest.permission.NEARBY_WIFI_DEVICES}, 12));
+            askPermission(Manifest.permission.NEARBY_WIFI_DEVICES, REQUEST_NEARBY));
         
         findViewById(R.id.btn_scan_lan).setOnClickListener(v -> scanLan());
         findViewById(R.id.btn_manual_add).setOnClickListener(v -> manualAdd());
@@ -98,21 +179,39 @@ public class MainActivity extends Activity {
         findViewById(R.id.btn_stop_receiver).setOnClickListener(v -> stopReceiver());
         
         findViewById(R.id.btn_battery_optimize).setOnClickListener(v -> requestBatteryWhitelist());
-        findViewById(R.id.btn_app_settings).setOnClickListener(v -> 
-            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, 
-                Uri.parse("package:" + getPackageName()))));
+        findViewById(R.id.btn_app_settings).setOnClickListener(v -> openAppSettings());
         findViewById(R.id.btn_open_shizuku).setOnClickListener(v -> openShizuku());
         findViewById(R.id.btn_copy_adb).setOnClickListener(v -> copyAdbCommands());
 
         findViewById(R.id.btn_account_login).setOnClickListener(v -> accountLogin());
         findViewById(R.id.btn_account_register).setOnClickListener(v -> accountRegister());
         findViewById(R.id.btn_account_logout).setOnClickListener(v -> accountLogout());
+        accountReceiveCheck.setOnCheckedChangeListener((button, enabled) -> {
+            AccountStore.setReceiveEnabled(this, enabled);
+            if (enabled && AccountStore.hasAccount(this)) startReceiver();
+            render();
+        });
+        findViewById(R.id.btn_account_inbox).setOnClickListener(v -> showInbox());
+        findViewById(R.id.btn_account_refresh).setOnClickListener(v -> {
+            if (!AccountStore.hasAccount(this)) { Toast.makeText(this, "请先登录账号", Toast.LENGTH_SHORT).show(); return; }
+            if (accountReceiveCheck.isChecked()) startReceiver();
+            else accountReceiveCheck.setChecked(true); // The change listener starts it once.
+            CloudRelay.executor().execute(() -> {
+                boolean ok = AccountApi.pollInbox(getApplicationContext());
+                runOnUiThread(() -> {
+                    if (!activityAlive()) return;
+                    Toast.makeText(this, ok ? "已收取，后台会继续补齐" : "暂未连接，将自动重试", Toast.LENGTH_SHORT).show();
+                    render();
+                    showInbox();
+                });
+            });
+        });
     }
 
     private void render() {
         // Cloud relay
-        CloudConfigStore.Config cloud = CloudConfigStore.load(this);
-        relayUrlEdit.setText(cloud.relayUrl);
+        relayUrlEdit.setText(RelayHttp.PRIMARY);
+        ((TextView) findViewById(R.id.text_backup_relay_url)).setText(RelayHttp.BACKUP);
         cloudStatusText.setText(CloudRelay.statusText(this));
         
         // Device management
@@ -209,15 +308,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void saveRelayUrl() {
-        try {
-            CloudRelay.saveRelayUrl(this, relayUrlEdit.getText().toString());
-            Toast.makeText(this, "Relay 地址已保存", Toast.LENGTH_SHORT).show();
-            render();
-        } catch (Exception e) {
-            Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
-        }
-    }
 
     private void cloudPairSender() {
         String relayUrl = relayUrlEdit.getText().toString();
@@ -286,6 +376,7 @@ public class MainActivity extends Activity {
     }
 
     private void accountLogin() {
+        setAccountBusy(true);
         String username = accountUsernameEdit.getText().toString().trim();
         String email = accountEmailEdit.getText().toString().trim();
         String password = accountPasswordEdit.getText().toString();
@@ -293,29 +384,102 @@ public class MainActivity extends Activity {
         Toast.makeText(this, "正在登录 MsgDock…", Toast.LENGTH_SHORT).show();
         AccountApi.login(this, identifier, password, (success, message) -> {
             if (!activityAlive()) return;
+            finishAccountLogin(success);
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
             render();
         });
     }
 
     private void accountRegister() {
+        setAccountBusy(true);
         String username = accountUsernameEdit.getText().toString().trim();
         String email = accountEmailEdit.getText().toString().trim();
         String password = accountPasswordEdit.getText().toString();
         Toast.makeText(this, "正在注册 MsgDock…", Toast.LENGTH_SHORT).show();
         AccountApi.register(this, username, email, password, (success, message) -> {
             if (!activityAlive()) return;
+            finishAccountLogin(success);
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
             render();
         });
     }
 
     private void accountLogout() {
+        setAccountBusy(true);
         AccountApi.logout(this, (success, message) -> {
             if (!activityAlive()) return;
+            setAccountBusy(false);
+            accountReceiveCheck.setChecked(false);
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
             render();
         });
+    }
+
+    private void setAccountBusy(boolean busy) {
+        findViewById(R.id.btn_account_login).setEnabled(!busy);
+        findViewById(R.id.btn_account_register).setEnabled(!busy);
+        findViewById(R.id.btn_account_logout).setEnabled(!busy);
+    }
+
+    private void finishAccountLogin(boolean success) {
+        setAccountBusy(false);
+        if (success) {
+            accountPasswordEdit.setText("");
+            if (AccountStore.receiveEnabled(this)) startReceiver();
+        }
+    }
+
+    private void showInbox() {
+        String user = AccountStore.userId(this);
+        CloudRelay.executor().execute(() -> {
+            try {
+                List<org.json.JSONObject> rows = CloudInboxStore.localHistory(getFilesDir(), user, 200);
+                runOnUiThread(() -> {
+                    if (!activityAlive() || !user.equals(AccountStore.userId(this))) return;
+                    if (rows.isEmpty()) {
+                        new AlertDialog.Builder(this).setTitle("本机收件箱")
+                            .setMessage("暂无已保存的短信。局域网和配对云端收到的短信无需登录即可查看；登录后也会显示当前账号已同步到本机的历史。")
+                            .setPositiveButton("知道了", null).show();
+                        return;
+                    }
+                    String[] labels = new String[rows.size()];
+                    for (int i = 0; i < rows.size(); i++) {
+                        org.json.JSONObject row = rows.get(i);
+                        String body = row.optString("text", "").replace('\n', ' ');
+                        labels[i] = row.optString("from") + "\n" + inboxMetadata(row) + "\n"
+                                + (body.length() > 60 ? body.substring(0, 60) + "…" : body);
+                    }
+                    new AlertDialog.Builder(this).setTitle("本机收件箱（最近 " + rows.size() + " 条）")
+                        .setItems(labels, (dialog, which) -> {
+                            if (!user.equals(AccountStore.userId(this))) return;
+                            org.json.JSONObject row = rows.get(which);
+                            String body = row.optString("text");
+                            AlertDialog.Builder detail = new AlertDialog.Builder(this).setTitle(row.optString("from"))
+                                .setMessage(inboxMetadata(row) + "\n\n" + body)
+                                .setPositiveButton("复制全文", (d, w) -> copyInboxText(body, user)).setNegativeButton("关闭", null);
+                            java.util.regex.Matcher code = java.util.regex.Pattern.compile("(?<!\\d)(\\d{4,8})(?!\\d)").matcher(body);
+                            if (code.find()) { String value = code.group(1); detail.setNeutralButton("复制验证码", (d, w) -> copyInboxText(value, user)); }
+                            detail.show();
+                        }).setNegativeButton("关闭", null).show();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> { if (activityAlive()) Toast.makeText(this, "读取收件箱失败，请重试", Toast.LENGTH_LONG).show(); });
+            }
+        });
+    }
+
+    private String inboxMetadata(org.json.JSONObject row) {
+        String source = row.optString("source");
+        String label = "lan".equals(source) ? "局域网" : "cloud".equals(source) ? "配对云端" : "账号同步";
+        return row.optString("device", "未知设备") + " · " + label + " · "
+            + java.text.DateFormat.getDateTimeInstance().format(new Date(row.optLong("receivedAt")));
+    }
+
+    private void copyInboxText(String text, String user) {
+        if (!activityAlive() || !user.equals(AccountStore.userId(this))) return;
+        ClipboardManager clipboard = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText("MsgDock", text));
+        Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show();
     }
 
     private void copyMachineCode() {
@@ -374,26 +538,42 @@ public class MainActivity extends Activity {
     private String receiverStatus() {
         boolean on = TargetStore.prefs(this).getBoolean(ReceiverService.PREF_RECEIVER_ENABLED, false);
         String pending = CloudRelay.pendingReceiverCode(this);
-        return "状态：" + (on ? "✓ 运行中" : "未启动") +
+        String status = on ? ReceiverService.statusText()
+            : (ReceiverService.isRunningOrStarting() ? "正在停止…" : "未启动");
+        NotificationManager notifications = getSystemService(NotificationManager.class);
+        boolean notify = notifications != null && notifications.areNotificationsEnabled();
+        return "状态：" + status +
             "\n地址：http://" + ReceiverService.localIpv4(this) + ":58123" +
             "\nLAN 配对码：" + TargetStore.ensurePairCode(this) +
             "\n云接收链路：" + CloudConfigStore.receiverLinks(this).size() + " 条" +
-            (pending.isEmpty() ? "" : "\n云接收配对码：" + pending);
+            (pending.isEmpty() ? "" : "\n云接收配对码：" + pending) +
+            (notify ? "" : "\n通知未开启：短信仍保存到本机历史，可在应用设置开启通知");
     }
 
     private void startReceiver() {
         if (Build.VERSION.SDK_INT >= 33 && 
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 11);
+            askPermission(Manifest.permission.POST_NOTIFICATIONS, REQUEST_NOTIFICATIONS);
+            return;
         }
-        TargetStore.prefs(this).edit().putBoolean(ReceiverService.PREF_RECEIVER_ENABLED, true).commit();
-        ReceiverService.ensureStarted(this);
-        Toast.makeText(this, "接收端已启动", Toast.LENGTH_SHORT).show();
+        startReceiverNow();
+    }
+
+    private void startReceiverNow() {
+        if (!TargetStore.prefs(this).edit().putBoolean(ReceiverService.PREF_RECEIVER_ENABLED, true).commit()) {
+            Toast.makeText(this, "启动设置保存失败，请重试", Toast.LENGTH_LONG).show();
+            return;
+        }
+        boolean requested = ReceiverService.ensureStarted(this);
+        Toast.makeText(this, requested ? ReceiverService.statusText() : "启动失败，请重试或检查后台限制", Toast.LENGTH_LONG).show();
         render();
     }
 
     private void stopReceiver() {
-        TargetStore.prefs(this).edit().putBoolean(ReceiverService.PREF_RECEIVER_ENABLED, false).commit();
+        if (!TargetStore.prefs(this).edit().putBoolean(ReceiverService.PREF_RECEIVER_ENABLED, false).commit()) {
+            Toast.makeText(this, "停止设置保存失败，请重试", Toast.LENGTH_LONG).show();
+            return;
+        }
         BootReceiver.cancelReceiverRestart(this);
         if (ReceiverService.isRunningOrStarting()) {
             Intent stop = new Intent(this, ReceiverService.class).setAction(ReceiverService.ACTION_STOP);
@@ -408,15 +588,22 @@ public class MainActivity extends Activity {
     }
 
     private void scanLan() {
+        if (scanning) return;
         if (Build.VERSION.SDK_INT >= 33 && 
             checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.NEARBY_WIFI_DEVICES}, 12);
+            askPermission(Manifest.permission.NEARBY_WIFI_DEVICES, REQUEST_SCAN);
+            return;
         }
+        scanning = true;
+        Button scanButton = findViewById(R.id.btn_scan_lan);
+        scanButton.setEnabled(false);
+        scanButton.setText("正在扫描…");
         Toast.makeText(this, "正在扫描约 5 秒…", Toast.LENGTH_SHORT).show();
         discovered.clear();
         
-        Executors.newSingleThreadExecutor().execute(() -> {
-            long end = System.currentTimeMillis() + 5200;
+        scanThread = new Thread(() -> {
+            long end = SystemClock.elapsedRealtime() + 5200;
+            String failure = null;
             Set<String> seen = new HashSet<>();
             try (DatagramSocket ds = new DatagramSocket(null)) {
                 ds.setReuseAddress(true);
@@ -425,23 +612,41 @@ public class MainActivity extends Activity {
                 ds.setSoTimeout(600);
                 byte[] buf = new byte[1024];
                 
-                while (System.currentTimeMillis() < end) {
+                while (!Thread.currentThread().isInterrupted() && SystemClock.elapsedRealtime() < end) {
                     try {
                         DatagramPacket p = new DatagramPacket(buf, buf.length);
                         ds.receive(p);
                         String s = new String(p.getData(), p.getOffset(), p.getLength(), StandardCharsets.UTF_8);
                         String[] f = s.split("\\|", 4);
                         if (f.length == 4 && "XGY_SMS_V1".equals(f[0])) {
+                            int port;
+                            try { port = Integer.parseInt(f[3]); } catch (NumberFormatException invalidPacket) { continue; }
+                            if (port < 1 || port > 65535) continue;
                             String key = f[2] + ":" + f[3];
                             if (seen.add(key)) {
-                                discovered.add(new TargetStore.Target(f[1], f[2], Integer.parseInt(f[3]), ""));
+                                discovered.add(new TargetStore.Target(f[1], f[2], port, ""));
                             }
                         }
                     } catch (SocketTimeoutException ignored) {}
                 }
-            } catch (Exception ignored) {}
-            runOnUiThread(this::showDiscovered);
-        });
+            } catch (Exception e) {
+                failure = "扫描失败，请检查 Wi-Fi 后重试，也可以手动添加接收端 IP。";
+                android.util.Log.w("XgyLanSms", "LAN discovery failed", e);
+            }
+            if (Thread.currentThread().isInterrupted()) return;
+            final String error = failure;
+            runOnUiThread(() -> {
+                if (!activityAlive()) return;
+                scanning = false;
+                scanThread = null;
+                scanButton.setEnabled(true);
+                scanButton.setText("扫描 LAN");
+                if (error != null) new AlertDialog.Builder(this).setTitle("无法扫描")
+                    .setMessage(error).setPositiveButton("知道了", null).show();
+                else showDiscovered();
+            });
+        }, "MsgDock-LAN-scan");
+        scanThread.start();
     }
 
     private void showDiscovered() {

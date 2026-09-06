@@ -20,6 +20,11 @@ public class CloudSyncJobService extends JobService {
                 // delay the current MsgDock history path. Keep the old relay
                 // retry independent and durable as before.
                 boolean accountSyncSuccess = AccountApi.flushOutbox(getApplicationContext());
+                if (AccountStore.receiveEnabled(this)
+                        && TargetStore.prefs(this).getBoolean(ReceiverService.PREF_RECEIVER_ENABLED, false)) {
+                    // Save missed history even if Android has suspended the foreground process.
+                    accountSyncSuccess = AccountApi.pollInbox(this) && accountSyncSuccess;
+                }
                 boolean legacySyncSuccess = true;
                 try {
                     CloudRelay.flushOutbox(getApplicationContext());

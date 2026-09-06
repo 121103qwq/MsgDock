@@ -56,6 +56,7 @@ npm exec wrangler deploy -- --dry-run
 
 ## 发布与敏感信息
 
+- 每次交付新版本构建时，同步上传对应安装包并更新网站下载链接；核对线上资产的版本、SHA-256 和实际可下载性后才算交付完成。Android 与 Windows 独立标注版本，未更新的平台保留原有效链接。
 - 不提交或分享 `local.properties`、构建目录、`node_modules`、`.wrangler`、APK、EXE、日志、账号凭据或密钥。
 - 未经用户在当前任务明确要求，不部署 Worker、不安装 APK、不推送 GitHub、不创建 PR/Release。
 - 真实设备结果和线上部署状态必须现场验证；不能用单元测试代替。

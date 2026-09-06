@@ -30,6 +30,48 @@ function cookie(response: Response): string {
 }
 
 describe("MsgDock account API", () => {
+  it("accepts HTTPS browser same-origin registration on the hostname serving the UI", async () => {
+    const origin = "https://xgy-sms-relay.xgy2021sh.workers.dev";
+    const response = await SELF.fetch(`${origin}/api/v1/auth/register`, {
+      method: "POST", headers: { origin, "content-type": "application/json", "CF-Connecting-IP": "198.51.100.61" },
+      body: JSON.stringify({ username: "same-origin-browser", password: "browser test password" }),
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("access-control-allow-origin")).toBe(origin);
+    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
+    expect(response.headers.get("set-cookie")).toContain("Secure");
+    expect(response.headers.get("strict-transport-security")).toContain("max-age=");
+    const me = await SELF.fetch(`${origin}/api/v1/me`, { headers: { origin, cookie: cookie(response) } });
+    expect(me.status).toBe(200);
+  });
+
+  it("redirects HTTP pages before showing forms and refuses insecure credential posts", async () => {
+    for (const path of ["/", "/register?from=friend", "/login", "/inbox"]) {
+      const response = await SELF.fetch(`http://msgdock.dpdns.org${path}`, { redirect: "manual" });
+      expect(response.status).toBe(308);
+      expect(response.headers.get("location")).toBe(`https://msgdock.dpdns.org${path}`);
+    }
+    const post = await SELF.fetch("http://msgdock.dpdns.org/api/v1/auth/register", {
+      method: "POST", headers: { origin: "http://msgdock.dpdns.org", "content-type": "application/json" }, body: "{}",
+    });
+    expect(post.status).toBe(400);
+    expect(await json(post)).toMatchObject({ error: "https_required" });
+  });
+
+  it("allows valid same-origin preflight but rejects foreign, opaque and HTTP origins", async () => {
+    for (const origin of ["https://msgdock.test", "https://msgdock.dpdns.org"]) {
+      const response = await request("/api/v1/auth/register", { method: "OPTIONS", headers: { origin, "access-control-request-method": "POST" } });
+      expect(response.status).toBe(204);
+      expect(response.headers.get("access-control-allow-origin")).toBe(origin);
+    }
+    for (const origin of ["https://evil.example", "https://msgdock.test.evil.example", "null", "http://msgdock.dpdns.org"]) {
+      const response = await post("/api/v1/auth/register", {}, { origin });
+      expect(response.status).toBe(403);
+      expect(response.headers.get("access-control-allow-origin")).toBeNull();
+      expect(await json(response)).toMatchObject({ error: "cors_forbidden" });
+    }
+  });
+
   it("keeps users isolated, deduplicates messages, and separates token uses", async () => {
     const aliceRegister = await post(
       "/api/v1/auth/register",
