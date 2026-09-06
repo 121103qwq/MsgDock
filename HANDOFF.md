@@ -12,7 +12,7 @@
 
 | Agent | 状态 | 本轮任务 | 独占文件/目录 | 开始时间 |
 |---|---|---|---|---|
-| Codex | IN_PROGRESS | Android v0.7.4 本机收件箱、独立模拟器验收及网站对应下载交付 | MainActivity.java、CloudInboxStore.java、AccountInboxTest.java、activity_main.xml、app/build.gradle、tools/test-android-ui-mcp.cjs、tools/test-web-ui.mjs、web-ui/index.html、AGENTS.md、README.md、DESIGN.md、BUG.md、HANDOFF.md；发布快照及版本说明 | 2026-09-06 |
+| Codex | DONE | Android v0.7.4 本机收件箱模拟器验收、Release 与网站对应下载交付完成；真机验收待连接 | 无 | 2026-09-06 |
 | Zcode | IDLE | 无 | 无 | - |
 
 认领规则：
@@ -25,10 +25,10 @@
 ## 当前基线
 
 - 源码来源：`XgyLanSms-source-v0.6.1.zip` 的干净副本；未包含构建缓存、APK、EXE、`node_modules`、Wrangler 登录信息或密钥。
-- Android：v0.7.3 / versionCode 13，本地 APK 候选已构建并在独立 Android 14 模拟器验证，尚未上传新 Release。
+- Android：v0.7.4 / versionCode 14，已在独立 Android 14 模拟器验证，已上传预览 Release 并更新网站下载。
 - Windows：v0.7.0，本地无控制台单 EXE 候选已构建。
 - Relay：旧 `/v1/*` v0.6.0 兼容逻辑保留；本地 v0.7.0 候选增加 D1 账号 API 与 Web。
-- 已知部署：`https://msgdock.dpdns.org`，部署 ID `40fae349-ca91-4296-b86c-e68d0c57955d`；旧 workers.dev 地址仍正常。
+- 已知部署：`https://msgdock.dpdns.org`，部署 ID `cb054c5e-0fe0-4d1a-8e87-241c5c2064c3`；旧 workers.dev 地址仍正常。
 - 上一基线验证：Android 25 个单元测试通过、lint 0 errors；Relay 测试/typecheck/dry-run 通过；Windows 测试、vet、GUI 构建曾通过。
 - 未完成：没有连接真实 Android/ADB 设备，因此恢复、锁屏、HyperOS 和真实 SMS 端到端仍需实机验收。
 
@@ -43,7 +43,7 @@
 
 ## 交接记录
 
-### 2026-09-06 / Codex / IN_PROGRESS — Android 本机收件箱与对应网站下载
+### 2026-09-06 / Codex / DONE — Android 本机收件箱与对应网站下载
 
 - 用户追加要求：每个新版本构建同步更新网站对应下载链接。已写入本项目 AGENTS；Android 与 Windows 独立标版本，不发布缺失或不匹配的链接。
 - Android v0.7.4/code14：首页本机收件箱显示未登录 LAN/配对云端历史及当前账号历史，先隔离账号再按 deliveryId 去重，展示最近 200 条、保留底层历史；列表/详情标明来源时间，复制前复核账号。
@@ -52,7 +52,10 @@
 - 产物：outputs/MsgDock-v0.7.4/MsgDock-Android-v0.7.4-debug.apk，103496 字节；SHA-256 32B07514D26C74FDA406209D7941C12A498441A0CA9A32CAD040E428A804684F。与旧版使用同一调试证书。
 - 消融审查：沿用一个 JSONL，只增加有上限的去重读取与来源格式化；无新数据库、后台服务、生产依赖或通用框架。测试复用已有 MCP 脚本。
 - 清理：临时转发已移除，独立模拟器与 5038 ADB 已关闭；模拟器退出时设备注销有短暂滞后，待列表清空后仅重试专用 ADB 清理。
-- 发布状态：本条记录随已测试源码快照提交，随后上传预览 Release 并部署网站；线上结果完成后补记。真实 SMS、锁屏、HyperOS、后台保活和真机主备切换未验证；未进行真实账号端到端收发，Gradle lint 仍受 B-005 限制。
+- 发布：功能分支 release/msgdock-v0.7.4 与标签 v0.7.4 的代码提交 cb1af52e89d23c7af621f21bb5477a11b264559e；PR #2 保持未合并。预览 Release https://github.com/121103qwq/MsgDock/releases/tag/v0.7.4 只新增 Android APK、该提交的源码 ZIP 和 SHA256SUMS。
+- 资产实证：三个新资产均匿名 GET 成功，实际下载字节 SHA-256 与本地/GitHub digest 一致。源码 ZIP 327648 字节、141 项且无构建缓存/凭据/成品/备份源码；SHA-256 26E888E08FB088EB61B4E891FAA16C64256E6523AABE0283DF0BC4410A03D441。Windows v0.7.0 原链接 HEAD 200、原校验文件 GET 200，未重建或重传 EXE。
+- 网站：keep-vars/strict 部署 cb054c5e-0fe0-4d1a-8e87-241c5c2064c3，仅 /index.html 一项静态资产变化。主域名 / 与 /inbox、备用首页均 200 且下载区/内联脚本与本地一致；主备 health 200、未登录 messages 401/no-store、微信 TXT 200/内容未变。未更改绑定、域名、Secret 或 D1 schema。
+- 边界：真实 SMS、锁屏、HyperOS、后台保活和真机主备切换未验证；未进行真实账号端到端收发，Gradle lint 仍受 B-005 限制。该轮交付完成不表示 B-001 真机门槛已通过。
 
 ### 2026-09-06 / Codex / DONE — Android 权限和真实接收状态
 
