@@ -7,9 +7,9 @@ MsgDock 把 Android 收到的传统 SMS 同步到局域网 Windows、互联网 W
 ## 使用与下载
 
 - 网页收件箱：[msgdock.dpdns.org](https://msgdock.dpdns.org)
-- [Android v0.7.4 预览版](https://github.com/121103qwq/MsgDock/releases/tag/v0.7.4)：APK、完整源码 ZIP 和 SHA-256 校验文件。
+- [Android v0.7.5 预览版](https://github.com/121103qwq/MsgDock/releases/tag/v0.7.5)：APK、完整源码 ZIP 和 SHA-256 校验文件。
 - [Windows v0.7.0](https://github.com/121103qwq/MsgDock/releases/download/v0.7.0/MsgDock-Windows-v0.7.0.exe)：x64 单 EXE，本轮未更新 Windows。
-- [公开源码与开发记录](https://github.com/121103qwq/MsgDock)。当前发布快照在 `release/msgdock-v0.7.4` 分支，实机验收完成前不自动合并。
+- [公开源码与开发记录](https://github.com/121103qwq/MsgDock)。当前发布快照在 `release/msgdock-v0.7.5` 分支，实机验收完成前不自动合并。
 
 这是预览版：Android 为调试签名，Windows 未做代码签名，锁屏/HyperOS 和真实短信端到端仍待实机验收。升级前请保留旧版备份；GitHub 下载在部分网络下可能较慢。
 
@@ -36,15 +36,19 @@ token 哈希，不保存明文凭据。
 旧 `/v1/*` 配对 Relay 继续使用 P-256 ECDH、HKDF-SHA256 和 AES-256-GCM，Cloudflare 只看到
 密文。旧链路不会因升级到 v0.7.0 失效，也不会与账号 token 混用。
 
-## Android v0.7.4
+## Android v0.7.5
+
+- 首页新增“后台运行教程”：按品牌推荐，也能手动切换；离线说明电池优化、最近任务小锁、自启动三项设置。小米包含长按卡片点小锁与新版手机管家入口，华为/荣耀说明“不允许电池优化”的含义。
+- 覆盖小米/Redmi/POCO、华为、荣耀、OPPO/一加、realme、vivo/iQOO、三星、华硕/ROG、Google/原生 Android，并为其他品牌提供明确标注的通用排查；[来源与版本范围](docs/background-guide-sources.md)可查。
+- 教程提供系统电池列表和应用信息快捷入口，不自动改设置；只读取系统可确认的电池优化状态。后台小锁和自启动需自己检查，不能保证应用永不被系统结束。
 
 - 首页“本机收件箱”无需登录即可查看 LAN / 配对云端已保存短信；登录后也显示当前账号历史。不同账号隔离，多路副本合并显示，支持全文/验证码复制。
 - 列表按最近接收排列，显示设备、来源和时间，最多展示 200 条，旧历史不删除。
 - 在账号区勾选“接收账号短信（无需配对）”，登录与发送手机相同的账号即可接收；接收端无需短信权限。“立即收取”可手动刷新，后台会分页补齐。
 - 扫描等待附近设备授权并防止重复启动；接收状态反映实际监听结果。通知关闭仍保存历史，端口占用会明确报错。
 - 主 Relay 固定为 `https://msgdock.dpdns.org`，备用为 `https://xgy-sms-relay.xgy2021sh.workers.dev`；可安全重试的网络故障自动尝试备用，LAN 独立运行。注册/登录等结果不明的写入不自动重复提交。
-- APK：`outputs/MsgDock-v0.7.4/MsgDock-Android-v0.7.4-debug.apk`，versionCode 14，沿用旧调试签名。
-- 本轮通过 56 项 JVM 测试和独立 Android 14 模拟器的 5 项收件箱流程检查：v0.7.3 覆盖升级、LAN 实际 HTTP 接收/去重、全文/验证码复制、进程重开和本机账号隔离。账号隔离使用合成存储数据，未代替真实账号登录验收。
+- APK：`outputs/MsgDock-v0.7.5/MsgDock-Android-v0.7.5-debug.apk`，versionCode 15，沿用旧调试签名。
+- 新版验证范围和产物见 `DELIVERY-v0.7.5.md`。v0.7.4 已验证的收件箱、LAN 去重和复制逻辑本轮未修改。
 - SDK 本机构建兜底：`./tools/build-android-local.ps1`，使用已有 SDK/JDK/测试依赖缓存。Gradle lint 因已记录的主机故障未运行；真实 SMS、锁屏、HyperOS 和后台保活仍待真机验收。
 
 - 收到 SMS 后，若已登录账号，先把消息和唯一 `client_message_id` 写入本地 Account Outbox。
@@ -109,7 +113,7 @@ D1 表和索引见 `cloudflare/migrations/0001_accounts.sql`。
 
 ## 第一次使用
 
-1. 安装 `outputs/MsgDock-v0.7.0/MsgDock-Android-v0.7.0-debug.apk` 并授予短信、通知和附近设备权限。
+1. 安装 `outputs/MsgDock-v0.7.5/MsgDock-Android-v0.7.5-debug.apk`，按使用功能授予权限；打开首页“后台运行教程”，检查本机的电池、后台小锁与自启动设置。
 2. 运行 `outputs/MsgDock-v0.7.0/MsgDock-Windows-v0.7.0.exe`；首次防火墙提示只允许专用网络。
 3. Android 和 Windows/Web 使用同一个账号登录。
 4. Android 收到真实 SMS 后会先入队，再分别走 LAN 和互联网路径。
@@ -152,9 +156,8 @@ npx wrangler deploy --dry-run
   IDOR、token 用途隔离、消息去重、Cookie 属性及 205 条消息分页恢复。
 - Windows：`go test ./...` 和 `go vet ./...` 通过；单 EXE 构建成功，PE subsystem 已读取验证为
   `IMAGE_SUBSYSTEM_WINDOWS_GUI (2)`。
-- Android：本机 Gradle 因 Java NIO loopback 环境错误无法启动 daemon；已使用同一 Android SDK
-  的 `aapt2 + javac + d8 + zipalign + apksigner` 完整编译，JUnit `30/30` 通过，APK v2/v3 签名
-  校验通过，包名 `com.xgy.lansms`、versionCode `10`、versionName `0.7.0`。
+- Android：本机 Gradle 因 Java NIO loopback 环境错误无法启动 daemon，使用已有 Android SDK
+  本机构建兜底。各版验证与签名信息见对应 `DELIVERY` 文档；不把 SDK 编译当作 Gradle lint 通过。
 - 当前没有连接 ADB 真机；锁屏、HyperOS、真实 SMS、Toast 点击和三端线上闭环仍需实机验收。
 
 ## 安全与兼容边界

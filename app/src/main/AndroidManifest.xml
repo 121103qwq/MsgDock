@@ -35,6 +35,8 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".BackgroundGuideActivity" android:exported="false" />
+
         <receiver
             android:name=".SmsReceiver"
             android:permission="android.permission.BROADCAST_SMS"

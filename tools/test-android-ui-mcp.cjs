@@ -17,9 +17,9 @@ const { StdioClientTransport } = sdkRequire('@modelcontextprotocol/sdk/client/st
 const serial = 'emulator-5680';
 const pkg = 'com.xgy.lansms';
 const apk = path.resolve(process.argv[2] || '');
-assert(process.argv[2] && fs.existsSync(apk), 'Usage: node tools/test-android-ui-mcp.cjs <apk> [permissions|lifecycle|inbox]');
+assert(process.argv[2] && fs.existsSync(apk), 'Usage: node tools/test-android-ui-mcp.cjs <apk> [permissions|lifecycle|inbox|guide]');
 const scenario = process.argv[3] || 'permissions';
-assert(['permissions', 'lifecycle', 'inbox'].includes(scenario));
+assert(['permissions', 'lifecycle', 'inbox', 'guide'].includes(scenario));
 const output = path.join(root, 'build', 'android-ui-' + new Date().toISOString().replace(/[:.]/g, '-'));
 fs.mkdirSync(output, { recursive: true });
 const report = { device: serial, apk, scenario, checks: [], screenshots: [], passed: false };
@@ -43,6 +43,7 @@ let forwardPort;
 let ownsReverse = false;
 let rotated = false;
 let inboxFixtureBackup;
+let originalFontScale;
 // Fixture writes are restricted to two app-private files on the disposable emulator.
 function writeFixture(name, content) {
     assert(['files/cloud-inbox.jsonl', 'shared_prefs/msgdock_account.xml'].includes(name));
@@ -66,7 +67,16 @@ async function reveal(value, direction = 'up') {
         const elements = await tree();
         const target = elements.find(e => e.text === value);
         if (target) return target;
-        await call('mobile_swipe_on_screen', { device: serial, direction, distance: 1050 });
+        const region = elements.filter(e => /ScrollView|ListView/.test(e.type || '') && e.coordinates)
+            .sort((a, b) => b.coordinates.height - a.coordinates.height)[0];
+        if (region) {
+            const { x, y, width, height } = region.coordinates;
+            await call('mobile_swipe_on_screen', { device: serial, direction,
+                x: Math.round(x + width / 2), y: Math.round(y + height * (direction === 'up' ? 0.85 : 0.15)),
+                distance: Math.round(height * 0.65) });
+        } else {
+            await call('mobile_swipe_on_screen', { device: serial, direction });
+        }
     }
     throw new Error('Not found after scrolling: ' + value);
 }
@@ -100,6 +110,98 @@ async function waitForText(value) {
         await delay(1000);
     }
     throw new Error('Expected live state missing: ' + value);
+}
+
+async function guide() {
+    adb('shell', 'am', 'force-stop', pkg);
+    report.previousVersion = adb('shell', 'dumpsys', 'package', pkg).match(/versionName=(\S+)/)?.[1];
+    const history = adb('shell', 'run-as', pkg, 'cat', 'files/cloud-inbox.jsonl');
+    const oldBatteryState = adb('shell', 'dumpsys', 'deviceidle', 'whitelist');
+    await call('mobile_install_app', { device: serial, path: apk });
+    const expected = fs.readFileSync(path.join(root, 'app', 'build.gradle'), 'utf8').match(/versionName '([^']+)'/)[1];
+    assert(adb('shell', 'dumpsys', 'package', pkg).includes('versionName=' + expected));
+    assert.equal(adb('shell', 'run-as', pkg, 'cat', 'files/cloud-inbox.jsonl'), history);
+    await call('mobile_launch_app', { device: serial, packageName: pkg });
+    await tapText('后台运行教程 · 电池 / 小锁 / 自启动', 'down');
+    let elements = await waitForText('后台运行教程');
+    assert(contains(elements, '品牌：Google / 原生 Android'));
+    assert(contains(elements, '系统电池优化：'));
+    await screenshot('guide-default');
+    passed('Upgrade preserves saved inbox; home opens offline guide with detected brand and honest battery status');
+
+    const examples = [
+        ['小米 / Redmi / POCO', '省电策略', '长按 MsgDock', '后台自启动'],
+        ['华为', '不允许', '向下拉', '手动管理'],
+        ['荣耀', '不允许', '下滑并停一下', '应用启动管理'],
+        ['OPPO / 一加', '耗电管理', '更多菜单', '自启动管理'],
+        ['realme 真我', '应用耗电管理', '向下拉', '隐私权限'],
+        ['vivo / iQOO', '后台耗电管理', '向下滑', '应用与权限'],
+        ['三星', '从不休眠', 'Keep open', '通常没有'],
+        ['华硕 / ROG', '不受限制', '没有统一', 'Auto-start Manager'],
+        ['Google / 原生 Android', '应用电池用量', '通常没有', '通常没有'],
+        ['其他：魅族 / 中兴 / 努比亚 / 联想等', '后台运行', '有明确的', '隐藏组件'],
+    ];
+    for (const [brand, battery, recents, autostart] of examples) {
+        await tap((await tree()).find(e => String(e.text || '').startsWith('品牌：')));
+        await tapText(brand);
+        elements = await tree();
+        assert(contains(elements, '品牌：' + brand));
+        assert(contains(elements, battery), brand + ': battery text');
+        // The native page is deliberately scrollable rather than shrinking long instructions.
+        let seen = elements.map(e => e.text || '').join('\n');
+        for (let i = 0; i < 7 && !(seen.includes(recents) && seen.includes(autostart)); i++) {
+            await call('mobile_swipe_on_screen', { device: serial, direction: 'up', distance: 800 });
+            elements = await tree();
+            seen += '\n' + elements.map(e => e.text || '').join('\n');
+        }
+        assert(seen.includes(recents), brand + ': recents text');
+        assert(seen.includes(autostart), brand + ': autostart text');
+        if (['小米 / Redmi / POCO', '三星'].includes(brand)) await screenshot(brand.startsWith('小米') ? 'guide-xiaomi-lock' : 'guide-samsung');
+    }
+    passed('All 10 brand groups display their own battery, recent-task lock and autostart instructions');
+
+    await tapText('查看本品牌官方参考资料');
+    elements = await tree();
+    assert(contains(elements, '官方参考资料 · 需联网打开'));
+    assert(contains(elements, 'Android 通用：每个应用的电池设置'));
+    await tapText('取消');
+    await tap((await tree()).find(e => String(e.text || '').startsWith('品牌：')));
+    await tapText('华为', 'down');
+    originalFontScale = adb('shell', 'settings', 'get', 'system', 'font_scale');
+    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3');
+    await waitForText('品牌：华为');
+    await screenshot('guide-large-font');
+    rotated = true;
+    await call('mobile_set_orientation', { device: serial, orientation: 'landscape' });
+    await waitForText('品牌：华为');
+    await tapText('查看本品牌官方参考资料');
+    assert(contains(await tree(), '华为：应用无法后台运行'));
+    await tapText('取消');
+    await screenshot('guide-landscape');
+    await call('mobile_set_orientation', { device: serial, orientation: 'portrait' });
+    rotated = false;
+    if (originalFontScale === 'null') adb('shell', 'settings', 'delete', 'system', 'font_scale');
+    else adb('shell', 'settings', 'put', 'system', 'font_scale', originalFontScale);
+    originalFontScale = undefined;
+    passed('Manual brand survives larger text and rotation; long content and correct official-source list remain reachable');
+
+    await tapText('打开 MsgDock 应用信息', 'down');
+    await delay(700);
+    assert(adb('shell', 'dumpsys', 'activity', 'activities').match(/ResumedActivity[=:].*com\.android\.settings/));
+    assert(contains(await tree(), 'MsgDock'));
+    await call('mobile_press_button', { device: serial, button: 'BACK' });
+    await waitForText('品牌：华为');
+    await tapText('系统电池优化列表', 'down');
+    await delay(700);
+    assert(adb('shell', 'dumpsys', 'activity', 'activities').match(/ResumedActivity[=:].*com\.android\.settings/));
+    await screenshot('guide-system-battery');
+    await call('mobile_press_button', { device: serial, button: 'BACK' });
+    await waitForText('品牌：华为');
+    assert.equal(adb('shell', 'dumpsys', 'deviceidle', 'whitelist'), oldBatteryState);
+    await tapText('返回');
+    assert(contains(await tree(), '本机收件箱 · 短信历史'));
+    assert.equal(adb('shell', 'run-as', pkg, 'cat', 'files/cloud-inbox.jsonl'), history);
+    passed('App-info and battery-list shortcuts open real system pages and return without changing whitelist or inbox');
 }
 
 async function lifecycle() {
@@ -256,6 +358,11 @@ async function inbox() {
         assert(adb('emu', 'avd', 'name').includes('MsgDock_Codex_API34'));
         assert.equal(adb('shell', 'getprop', 'sys.boot_completed'), '1');
         report.server = client.getServerVersion();
+        if (scenario === 'guide') {
+            await guide();
+            report.passed = true;
+            return;
+        }
         if (scenario === 'inbox') {
             await inbox();
             report.passed = true;
@@ -352,6 +459,12 @@ async function inbox() {
         process.exitCode = 1;
         try { await screenshot('failure'); } catch { }
     } finally {
+        if (originalFontScale !== undefined) {
+            try {
+                if (originalFontScale === 'null') adb('shell', 'settings', 'delete', 'system', 'font_scale');
+                else adb('shell', 'settings', 'put', 'system', 'font_scale', originalFontScale);
+            } catch (error) { report.passed = false; report.error = 'Font restoration: ' + error.stack; process.exitCode = 1; }
+        }
         if (inboxFixtureBackup) {
             try {
                 adb('shell', 'am', 'force-stop', pkg);

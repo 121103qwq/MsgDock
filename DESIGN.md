@@ -115,15 +115,17 @@ Android SMS_RECEIVED
 
 ## 当前部署与版本边界
 
-- 默认 Relay：`https://xgy-sms-relay.xgy2021sh.workers.dev`
+- 默认 Relay：`https://msgdock.dpdns.org`；原 workers.dev 入口作为备用。
 - 2026-09-06 部署版本：`cb054c5e-0fe0-4d1a-8e87-241c5c2064c3`（Android v0.7.4 下载链接）；后续部署前必须重新核对。
 - `https://msgdock.dpdns.org` 已上线；D1 ID 为 `e9538d9c-f98a-40ae-b948-af7acdb56050`。
   本地客户端候选尚需真机验收，不能用线上 API 测试替代锁屏/真实短信/Toast 点击验证。
-- Android v0.7.4、Windows v0.7.0 与旧 Relay v0.6.0 保持协议兼容。下载区按平台分别标注版本，指向实际上传的 Release 资产与各自 SHA-256 清单。
+- Android v0.7.5、Windows v0.7.0 与旧 Relay v0.6.0 保持协议兼容。下载区按平台分别标注版本，指向实际上传的 Release 资产与各自 SHA-256 清单。
 
 ## UI 设计
 
 ### Android Material Design 3
+
+后台教程：独立原生 `BackgroundGuideActivity` 使用同一套 XML 样式；`BackgroundGuideContent` 保存离线的分品牌三步说明与官方来源。品牌先匹配 `Build.BRAND` 再匹配厂家，手动选择只随页面状态保存，不新增持久配置。仅通过标准 Intent 打开应用信息/电池优化列表；返回时刷新系统电池豁免状态，不猜测 OEM 自启动或任务小锁。旧版路径标出范围，未知品牌使用诚实的通用排查；不增加 WebView、网络请求、后台线程、权限或厂商私有组件适配层。
 
 权限与运行状态：扫描在附近设备权限回调确认允许后才开始，同一界面只运行一次有时限的扫描，页面销毁后取消。拒绝通知不阻止接收和本地历史；取消权限请求不继续尚未开始的操作。权限弹窗中的待执行动作随 Activity 重建保存，不增加持久业务配置。接收开关只表示用户意图，界面从现有服务读取启动、LAN 就绪、监听失败或停止状态；LAN 监听失败不停止独立的账号/云接收循环。
 

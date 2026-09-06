@@ -35,6 +35,14 @@
             android:text="本机收件箱 · 短信历史"
             android:layout_marginBottom="@dimen/spacing_md"/>
 
+        <Button
+            android:id="@+id/btn_background_guide"
+            style="@style/Button.Outlined"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="后台运行教程 · 电池 / 小锁 / 自启动"
+            android:layout_marginBottom="@dimen/spacing_md"/>
+
         <!-- Account Sync Section -->
         <LinearLayout
             android:id="@+id/card_account"

@@ -12,7 +12,7 @@
 
 | Agent | 状态 | 本轮任务 | 独占文件/目录 | 开始时间 |
 |---|---|---|---|---|
-| Codex | DONE | Android v0.7.4 本机收件箱模拟器验收、Release 与网站对应下载交付完成；真机验收待连接 | 无 | 2026-09-06 |
+| Codex | IN_PROGRESS | Android v0.7.5 各品牌后台运行教程、模拟器验证与新版下载交付 | BackgroundGuideActivity.java、BackgroundGuideContent.java、BackgroundGuideTest.java、activity_background_guide.xml、MainActivity.java、activity_main.xml、AndroidManifest.xml、app/build.gradle、tools/test-android-ui-mcp.cjs、web-ui/index.html、AGENTS.md、README.md、DESIGN.md、HANDOFF.md、DELIVERY-v0.7.5.md、docs/background-guide-sources.md；发布快照 | 2026-09-06 |
 | Zcode | IDLE | 无 | 无 | - |
 
 认领规则：
@@ -42,6 +42,16 @@
 | P2 | 设计 ACK 后云历史浏览/恢复 | 先只改 `DESIGN.md` | 用户确认需求与保留策略 |
 
 ## 交接记录
+
+### 2026-09-06 / Codex / IN_PROGRESS — Android v0.7.5 后台运行教程
+
+- 用户要求下个版本汇总各品牌电池优化、最近任务小锁、自启动教学，并继续同步更新网站下载。
+- 已实现独立原生离线教程页与 10 组品牌内容、自动品牌推荐/手动切换、系统设置按钮和准确的标准电池状态；官方资料与旧版/通用路径边界记录在 `docs/background-guide-sources.md`。协议、接收服务、Windows、Cloudflare 代码/配置未改。
+- SDK 构建一次成功，59 JVM 通过，签名 v2/v3 通过；APK v0.7.5/code15/SHA-256 `C30FEB52E80FD01EAE5973987A35E5069753A7029D82FB78D4978A58AD938F5D`。网页 12 项、typecheck、dry-run 通过。
+- 实际 MCP 确认独立模拟器 `MsgDock_Codex_API34` / `emulator-5680` / Android 14，使用 5038。自动化前半段验证 0.7.4→0.7.5 保留历史、自动识别和 10 组完整内容；结果保存在 `build/android-ui-2026-09-06T08-20-24-654Z/`。
+- 大字体横屏的自动滑动长度超过滚动区域导致脚本失败；没有改应用，测试工具改用 UI 区域内手势。随后直接 MCP 已滑到底部并打开华为对应的两个官方来源选项，确认 1.3 字体与旋转保留选择；两个快捷按钮实际打开 Android Settings 的 App info / Battery optimization 并成功返回，页面返回首页。标准电池白名单前后相同、crash buffer 为空、font_scale 恢复 1.0。
+- 原始脚本 `passed:false` 如实保留；后续交互完成剩余验证，没有重复重跑已通过的 APK/品牌测试。MCP 原生 save_screenshot 在 Windows 路径上拒绝保存，未改插件；已有脚本截图和直接 UI/截图输出作为证据。
+- 待完成：GitHub 预览 Release、三个资产实际下载/哈希核对、网站对应链接部署与线上确认。没有新真机验收结论。
 
 ### 2026-09-06 / Codex / DONE — Android 本机收件箱与对应网站下载
 

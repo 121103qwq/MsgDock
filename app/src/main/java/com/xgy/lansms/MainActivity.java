@@ -159,6 +159,8 @@ public class MainActivity extends Activity {
     }
 
     private void setupListeners() {
+        findViewById(R.id.btn_background_guide).setOnClickListener(v ->
+            startActivity(new Intent(this, BackgroundGuideActivity.class)));
         cloudPairSenderBtn.setOnClickListener(v -> cloudPairSender());
         cloudPairReceiverBtn.setOnClickListener(v -> cloudPairReceiver());
         
