@@ -12,7 +12,7 @@
 
 | Agent | 状态 | 本轮任务 | 独占文件/目录 | 开始时间 |
 |---|---|---|---|---|
-| Codex | IN_PROGRESS | Android v0.7.5 各品牌后台运行教程、模拟器验证与新版下载交付 | BackgroundGuideActivity.java、BackgroundGuideContent.java、BackgroundGuideTest.java、activity_background_guide.xml、MainActivity.java、activity_main.xml、AndroidManifest.xml、app/build.gradle、tools/test-android-ui-mcp.cjs、web-ui/index.html、AGENTS.md、README.md、DESIGN.md、HANDOFF.md、DELIVERY-v0.7.5.md、docs/background-guide-sources.md；发布快照 | 2026-09-06 |
+| Codex | DONE | Android v0.7.5 后台运行教程、模拟器验证及网站下载交付完成 | 无 | 2026-09-06 |
 | Zcode | IDLE | 无 | 无 | - |
 
 认领规则：
@@ -25,10 +25,10 @@
 ## 当前基线
 
 - 源码来源：`XgyLanSms-source-v0.6.1.zip` 的干净副本；未包含构建缓存、APK、EXE、`node_modules`、Wrangler 登录信息或密钥。
-- Android：v0.7.4 / versionCode 14，已在独立 Android 14 模拟器验证，已上传预览 Release 并更新网站下载。
+- Android：v0.7.5 / versionCode 15，新增后台教程已在独立 Android 14 模拟器验证，已上传预览 Release 并更新网站下载。
 - Windows：v0.7.0，本地无控制台单 EXE 候选已构建。
 - Relay：旧 `/v1/*` v0.6.0 兼容逻辑保留；本地 v0.7.0 候选增加 D1 账号 API 与 Web。
-- 已知部署：`https://msgdock.dpdns.org`，部署 ID `cb054c5e-0fe0-4d1a-8e87-241c5c2064c3`；旧 workers.dev 地址仍正常。
+- 已知部署：`https://msgdock.dpdns.org`，部署 ID `07c86e6c-741d-478b-8afb-668183edd0b0`；旧 workers.dev 地址仍正常。
 - 上一基线验证：Android 25 个单元测试通过、lint 0 errors；Relay 测试/typecheck/dry-run 通过；Windows 测试、vet、GUI 构建曾通过。
 - 未完成：没有连接真实 Android/ADB 设备，因此恢复、锁屏、HyperOS 和真实 SMS 端到端仍需实机验收。
 
@@ -43,7 +43,7 @@
 
 ## 交接记录
 
-### 2026-09-06 / Codex / IN_PROGRESS — Android v0.7.5 后台运行教程
+### 2026-09-06 / Codex / DONE — Android v0.7.5 后台运行教程
 
 - 用户要求下个版本汇总各品牌电池优化、最近任务小锁、自启动教学，并继续同步更新网站下载。
 - 已实现独立原生离线教程页与 10 组品牌内容、自动品牌推荐/手动切换、系统设置按钮和准确的标准电池状态；官方资料与旧版/通用路径边界记录在 `docs/background-guide-sources.md`。协议、接收服务、Windows、Cloudflare 代码/配置未改。
@@ -51,7 +51,10 @@
 - 实际 MCP 确认独立模拟器 `MsgDock_Codex_API34` / `emulator-5680` / Android 14，使用 5038。自动化前半段验证 0.7.4→0.7.5 保留历史、自动识别和 10 组完整内容；结果保存在 `build/android-ui-2026-09-06T08-20-24-654Z/`。
 - 大字体横屏的自动滑动长度超过滚动区域导致脚本失败；没有改应用，测试工具改用 UI 区域内手势。随后直接 MCP 已滑到底部并打开华为对应的两个官方来源选项，确认 1.3 字体与旋转保留选择；两个快捷按钮实际打开 Android Settings 的 App info / Battery optimization 并成功返回，页面返回首页。标准电池白名单前后相同、crash buffer 为空、font_scale 恢复 1.0。
 - 原始脚本 `passed:false` 如实保留；后续交互完成剩余验证，没有重复重跑已通过的 APK/品牌测试。MCP 原生 save_screenshot 在 Windows 路径上拒绝保存，未改插件；已有脚本截图和直接 UI/截图输出作为证据。
-- 待完成：GitHub 预览 Release、三个资产实际下载/哈希核对、网站对应链接部署与线上确认。没有新真机验收结论。
+- 已交付：代码提交 `ed3a2d93d9b948418e4367d64575f27cf34e184e`，标签 `v0.7.5` 的远端目标已核对；功能分支 `release/msgdock-v0.7.5`、[PR #3](https://github.com/121103qwq/MsgDock/pull/3) 保持未合并。旧 PR 未改动。
+- [v0.7.5 预览 Release](https://github.com/121103qwq/MsgDock/releases/tag/v0.7.5) 发布 APK、源码 ZIP、SHA-256 清单三个文件；草稿资产先核对 GitHub digest，公开后无登录实际 GET 三个文件均 200 且 SHA-256 等于本地。源码 ZIP 148 项，不含构建输出、凭据或备份文件；SHA-256 `B62C96438E9C19C2D6E75D53269089ED2D1E36DC380721621A6869C3E3C763ED`。
+- 网站已部署 `07c86e6c-741d-478b-8afb-668183edd0b0`，仅上传修改的 `/index.html`，保留配置/绑定/变量。主域根页、`/inbox`、备用 workers.dev 根页均 200，下载区及原有脚本逐字匹配本地；`/health` 200、匿名消息 API 401/no-store，旧 Windows v0.7.0 下载 HEAD 200。
+- 清理完成：本轮模拟器与独立 ADB 已关闭，最终 helper Status 的 AdbPID/EmulatorPID 均为空；未开启浏览器或本地网站服务。没有新的真机验收结论。后续如修改教程，应先核对厂商当前资料，不把通用方法写成全机型准确路径。
 
 ### 2026-09-06 / Codex / DONE — Android 本机收件箱与对应网站下载
 
