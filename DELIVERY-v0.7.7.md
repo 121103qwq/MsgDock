@@ -1,33 +1,61 @@
-# MsgDock v0.7.7 预览版（候选，未发布）
+# MsgDock Android v0.7.7 预览构建
 
-本文件记录 v0.7.7 的候选产物。Release 尚未创建，网站下载区没有改动。真机验收和发布后，再在本文件补记发布核验。
+本次按用户要求，基于 harry-1211/MsgDock PR #1 重新构建 Android APK。PR 未合并，Windows 下载保留已发布的 v0.7.6。
 
-## 本次更新
+## 来源与平台边界
 
-- 两端用同一套五种状态说明同步情况：同步正常、正在同步、同步延迟、同步中断、需要处理。规则见 `DESIGN.md` 的“同步状态模型”。
-- Android 首页依次为状态卡、待处理事项、最近 5 条短信、接收端、账号和高级设置。通知识别到明确验证码时增加“复制验证码”按钮。
-- Android 接收端在息屏且使用电池时放慢空闲轮询，亮屏、充电、新消息或网络恢复时立即回到快速节奏。短信广播内持有唤醒锁，直到首轮转发完成。
-- Windows 托盘图标按状态显示彩色圆点，窗口分“概览”和“设置”两页，最近短信改为表格。通知按发件人分开保留，并新增隐私预览三档，默认完整。
-- Android 与 Windows 均升级为 v0.7.7（versionCode 17）。LAN v1 协议、端到端加密、先落盘再 ACK 和 Cloudflare 代码都没有改变。
+- PR：https://github.com/harry-1211/MsgDock/pull/1
+- 锁定提交：fd8d63bba21acc6dc9fd87e83b8bc3a21d2da4ca。
+- Android：versionName 0.7.7，versionCode 17，包名 com.xgy.lansms。
+- 构建分支：release/msgdock-android-v0.7.7，位于唯一共享开发工作区。
+- Windows 源码包含 PR 的 v0.7.7 候选，但本次没有构建、安装或发布 Windows EXE。网站保留 v0.7.6 的 EXE 和对应校验链接。
+- Cloudflare 业务源码、配置和绑定未修改。网站只更新下载区。
 
-## 验证
+首次构建锁定 0595ee4；复查发现 PR 新增 fd8d63b。新增内容仅涉及 Windows 和文档。两个提交的 app Git tree 均为 a588e067a53c45228a08d683a78e66a1ee99f500，因此 Android APK 和本轮测试覆盖的源码完全相同。
 
-- Android：云端没有 Android SDK，只用 API 36 框架包做了类型检查，96 项 JVM 测试通过。没有运行 Gradle 构建、lint、签名检查和模拟器。
-- Windows：在 Linux 上以 `GOOS=windows` 运行 vet、测试编译和 GUI 构建，均通过；27 项纯逻辑测试通过。没有在 Windows 上运行完整 `go test`。
-- 真机待验项见 `HANDOFF.md` 的第二轮记录。
+## 本次 Android 改进
 
-## 产物
+- 首页按状态卡、待处理事项、最近短信、接收端、账号和高级设置排序。
+- 五种状态统一为同步正常、正在同步、同步延迟、同步中断和需要处理。
+- 合并接收端列表，账号和高级设置默认折叠。
+- 明确验证码在最近短信中单独显示，通知增加复制验证码按钮。
+- 保留此前省电候选：有界短信广播唤醒锁、网络回调去抖和空闲轮询策略。该实现不代表已通过真机续航测量。
+- 保留 LAN v1、多路同 ID 去重、持久化后 ACK、账号隔离和旧加密配对兼容。
 
-| 文件 | 状态 | SHA-256 |
-|---|---|---|
-| MsgDock-Windows-v0.7.7.exe | 已在 Linux 交叉编译，未在 Windows 上运行 | D53ABD367209B6E5D67F9DF3BD7FFD8657D01C91D5245CE083A35FF9E88241A3 |
-| MsgDock-Android-v0.7.7-debug.apk | 待在本机构建 | - |
+## 本机构建与验证
 
-APK 必须用 v0.7.6 的同一个调试证书构建，证书 SHA-256 应为 `8b72e245377b56f06af95753d8fd396a880bf608a3161b6c175e443d94dbf82a`。签名不一致时，Android 不能覆盖升级，本机身份也无法继承。
+- 标准 Gradle 命令在任务开始前失败：Unable to establish loopback connection，未进入应用编译。Gradle lint 未运行。
+- 使用 tools/build-android-local.ps1、已有 Android API 36 SDK 和 Build Tools 35.0.0 完成资源编译、Java 编译、DEX、对齐及签名。
+- 96 项 JVM 测试全部通过。
+- APK v2/v3 签名验证通过。证书 SHA-256 为 8b72e245377b56f06af95753d8fd396a880bf608a3161b6c175e443d94dbf82a，与已发布 v0.7.6 实际证书一致。
+- aapt2 核对包名、版本、minSdk 26 和 targetSdk 36。
+- app/ 源码与锁定 PR 完全一致，本轮没有改动应用代码。
 
-## 发布步骤
+## 独立设备验证
 
-1. 在 v0.7.6 的构建电脑上运行 `.\gradlew.bat --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`，核对 APK 证书哈希。
-2. 在 Windows 上运行 `go test ./...`，并按 `HANDOFF.md` 完成真机验收。
-3. 创建 `release/msgdock-v0.7.7` 分支和 `v0.7.7` 标签，上传 APK、EXE、源码 ZIP 和 SHA-256 清单。
-4. 匿名下载核对哈希，再按 `AGENTS.md` 更新网站下载链接，并在本文件补记发布核验。
+仅使用 Codex 独立 android-test MCP，目标为 MsgDock_Codex_API34 / emulator-5680 / Android 14 / ADB 5038。开始前核对 AVD 名称、ro.kernel.qemu=1 和 boot_completed=1。已有无线真机未操作。
+
+tools/test-android-pr1-mcp.cjs 通过 6 组检查：
+
+1. v0.7.7 覆盖安装保留模拟器历史；首页状态优先、账号初始折叠，系统栏范围正常。
+2. 展开账号后密码输入框在键盘上方可达，收起键盘后滚动区域恢复。
+3. 360 dp／200% 字体下登录按钮可达，真实横屏和页面重建保留展开状态。
+4. 高级设置可展开，离线后台教程可打开并返回。
+5. 真实本地 HTTP 提交合成消息并落盘，同 ID 重发仅保存一条；最近短信和完整历史显示验证码。
+6. Android 系统通知中存在复制验证码操作。未据此宣称按钮点击或剪贴板实际内容通过。
+
+报告：build/android-pr1-2026-10-01T13-02-29-008Z/result.json，passed=true。7 张截图已人工检查，crash-log.txt 为空。字体、密度及竖屏已恢复，临时端口转发已移除。
+
+模拟器测试不代表真实 SMS、HyperOS 锁屏、Doze、后台保活、耗电量、厂商兼容或真实账号云端端到端验收。
+
+## 交付物
+
+目录：outputs/MsgDock-Android-v0.7.7-PR1/。
+
+- MsgDock-Android-v0.7.7-debug.apk
+- MsgDock-source-v0.7.7.zip：从本次固定交付提交生成，不含工作区未跟踪资料包、备份、凭据或构建产物。
+- SHA256SUMS-v0.7.7.txt：记录上述两个资产的实际 SHA-256。
+
+APK SHA-256：D621D5212DB4192524E71311CC14DFFE09C2274992B01D5123D7B12BE270B83F。
+
+按用户此前规则，发布到 121103qwq/MsgDock 的 v0.7.7 预览 Release，并更新网站 Android、源码和清单链接。实际上传、匿名下载哈希及网站核对结果在后续交接记录中补记；本节计划本身不等于发布成功。

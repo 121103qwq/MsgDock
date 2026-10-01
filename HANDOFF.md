@@ -12,9 +12,10 @@
 
 | Agent | 状态 | 本轮任务 | 独占文件/目录 | 开始时间 |
 |---|---|---|---|---|
-| Codex | DONE | Android/Windows v0.7.6 预览版与网站下载已发布并实际验哈希；真机待验项保留 | 无 | 2026-10-01 |
+| Codex | IN_PROGRESS | PR #1 Android v0.7.7 构建及预览交付；Windows 下载保留 v0.7.6 | app/；tools/test-android-pr1-mcp.cjs；tools/test-web-ui.mjs；README.md；HANDOFF.md；DELIVERY-v0.7.7.md；web-ui/index.html；本轮 build/outputs | 2026-10-01 |
 | Zcode | IDLE | 无 | 无 | - |
 | Claude（云端） | DONE | 状态优先界面第二轮已完成（分支 `claude/ui-status-first`，未发布，待真机验收） | 无 | 2026-10-01 |
+| Claude | DONE | Android 保活与耗电（`claude/android-power-keepalive` 已由 Codex 按用户授权推送，未发布） | 无 | 2026-10-01 |
 
 认领规则：
 
@@ -31,7 +32,7 @@
 - Relay：旧 `/v1/*` v0.6.0 兼容逻辑保留；本地 v0.7.0 候选增加 D1 账号 API 与 Web。
 - 已知部署：`https://msgdock.dpdns.org`，部署 ID `1e3ef438-2086-4ca7-9bd4-17e9b5c2d017`；主备下载页面均已现场验证。
 - 本轮基线验证：Android 59 项 JVM、SDK 构建与签名通过；Windows test/vet/GUI 构建通过；网页 12 项、typecheck、dry-run 和线上下载检查通过。Gradle lint 未运行，不能沿用历史版本的 lint 结论。
-- 未完成：没有连接真实 Android/ADB 设备，因此恢复、锁屏、HyperOS 和真实 SMS 端到端仍需实机验收。
+- 未完成：HyperOS 真机覆盖升级与基础布局已验证；真实 SMS、锁屏、后台保活、耗电量及 Toast 按钮点击仍需专项验收。
 
 ## 建议任务池
 
@@ -43,6 +44,15 @@
 | P2 | 设计 ACK 后云历史浏览/恢复 | 先只改 `DESIGN.md` | 用户确认需求与保留策略 |
 
 ## 交接记录
+
+### 2026-10-01 / Codex / IN_PROGRESS — PR #1 Android v0.7.7 本机打包
+
+- 用户要求根据 harry-1211/MsgDock PR #1 重新打 APK；按此前每版交付规则补安装包、源码、SHA-256 和网站链接。本轮仅发布 Android，Windows 下载保留 v0.7.6。PR 保持未合并。
+- 在唯一开发目录取 PR 到 harry/pr-1 并锁定 fd8d63b；以 release/msgdock-android-v0.7.7 构建。原先 BUG/HANDOFF 本地记录通过 stash 备份并合并保留，资料包和 MainActivity.java.backup 未覆盖，未进入发布源码。恢复 HANDOFF 时保留本地与云端两边记录；两次 stash 均保留可恢复副本。
+- APK 使用 PR 原样 app 源码，版本 0.7.7/code17。首次构建的 0595ee4 与最新 fd8d63b 的 app tree 相同；新提交只涉及 Windows 和文档。96 项 JVM、SDK 构建、v2/v3 签名通过，旧 APK 实证证书一致。Gradle 仍在主机 loopback 阶段失败，lint 未运行。
+- 独立 Android 14 MCP：6 组检查通过，7 张截图已检查，crash buffer 为空。覆盖账号折叠、键盘恢复、360 dp／200% 字体、横屏、教程、实际本地 HTTP 落盘去重与验证码显示。仅查看通知复制操作存在，未宣称实际剪贴板点击验收。报告 build/android-pr1-2026-10-01T13-02-29-008Z/result.json。
+- 本轮纠错：检查源码脏状态须排除用户未跟踪 backup，不能误判为已跟踪源码修改；正则文本补丁用原始字符串，避免转义失配；同一文件不能在一个 apply_patch 中同时 Delete/Add，改用 Update。初次守卫或补丁失败未覆盖用户文件。保留源码快照与真实测试证据，不以工具错误后的默认值报告成功。
+- 交付上传、匿名下载哈希和网站实际验证仍待执行。真实短信、HyperOS 锁屏、后台保活和耗电量仍未验收。
 
 ### 2026-10-01 / Claude（云端）/ DONE — 五态状态模型与界面第二轮（分支候选，未发布）
 
@@ -62,6 +72,41 @@
 - 本轮改动见 DESIGN“状态优先的首页”。协议、端口、去重、落盘后 ACK、通知节流和自动复制条件均未改。
 - 验证环境是云端 Linux，没有 Android SDK 和 Windows：Android 用 Robolectric android-all（API 36）做 javac 类型检查，R 为脚本生成的桩，83 项 JVM 测试通过，未运行 aapt2、d8、lint 或模拟器。Windows 用 `GOOS=windows` 完成 vet、测试编译和 GUI EXE 交叉编译；纯逻辑测试（通知策略、状态文案、Toast XML，共 13 项）抽到 Linux 包运行通过；含 WinRT/注册表的测试未运行。
 - 待真机确认：首页在 360 dp 宽、200% 字体下的排版；状态色在深色主题下的对比度；Windows ScrollView 内分组的实际布局和托盘提示截断；Toast attribution 行的显示。
+
+### 2026-10-01 / Codex / DONE — 资料包与 Claude 代码分支推送
+
+- 用户先授权推送资料包，随后明确追加推送 Claude 的省电代码。核对唯一工作区、现有 MsgDock 远端和当前 Claude 分支；未切换或覆盖工作区。
+- 使用独立 Git 索引，将 88 个资料文件原样提交到 maintenance/shared-workspace，提交 `2644ebdb2649aa24c567a6288ccbc7e0201c7bcb`，父提交 `2fd4dfb9bbc6c0d090df3d758b65d99546e28caa`。未把当前工作区的 Claude 代码混入该提交。资料包保持制作时快照，不含后来的省电改动。
+- 使用 git-safe-push.ps1 经代理 dry-run 后原子推送两个分支：maintenance/shared-workspace 指向 `2644ebd`；claude/android-power-keepalive 指向既有 `ea1ea4b952d48cbfbe342077a3678fd2df02dadd`。ls-remote 与 GitHub API 均确认提交；资料包 88 个远端 blob ID 与本地逐项一致，Claude 提交涉及 11 个文件。
+- 验证资料包原 SHA-256 清单 87 项（清单自身除外），敏感模式扫描无命中；Git 上传保留原文件字节。diff --check 对资料副本报告原有空白行/尾随空格，为保持快照哈希未格式化。Claude 代码 diff --check 通过；本轮只推送现有代码，未重跑构建或新增真机验收。
+- 未修改 main、创建或合并 PR、打包或部署。BUG.md、HANDOFF.md 的既有本地修改与备份源码保留；本条交接仅本地记录。当前仍在 Claude 分支，因此资料包在当前分支下显示未跟踪，但已在 maintenance/shared-workspace 分支提交并上传，不要因此重复提交或删除。
+
+### 2026-10-01 / Claude / DONE — Android 保活与耗电（仅本地分支）
+
+- 分支 `claude/android-power-keepalive`，提交 `ea1ea4b`，基于 `maintenance/shared-workspace`。未推送、未发布、未安装到设备。设计要点写在 DESIGN.md 的“Android 省电与保活”。
+- 发送：短信广播内持有有界唤醒锁，LAN 与两路云端并发发送，最多等 8 秒。修复的问题是：进程在广播结束后被冻结，导致 LAN 和首轮上传卡住；LAN 本身没有队列，卡住就会丢。
+- 耗电：网络回调去抖，信号/带宽变化不再触发设备备份网络任务；空闲时周期任务改为 6 小时；接收端轮询和发现广播在息屏用电池时放宽，亮屏、充电或来消息后恢复；没有云链路时不再定时唤醒；常驻通知不再每轮重发。
+- 验证：`tools/build-android-local.ps1` 输出到临时目录（未覆盖 outputs），编译、65 项 JVM 测试（新增 PowerPolicyTest 6 项）和 v2/v3 签名通过。Gradle lint 未运行。真机息屏、Doze、真实 SMS 和耗电对比仍未验收。
+- BUG.md 和本文件中 Codex 未提交的修改保持原样，没有一并提交。
+
+### 2026-10-01 / Codex / DONE — Claude UI 审查资料包
+
+- 按用户要求在项目内创建 `claude-ui-review/`，仅供上传和审查，不作为第二开发目录。包含当前五份主文档、v0.7.6 交付说明、协议、Android/Windows 相关源码和测试、Web 界面，以及首读任务说明和 SHA-256 文件清单，共 88 个文件。
+- 采用明确范围筛选已跟踪文件，复制当前磁盘内容，保留尚未提交的真机补验记录。逐文件核对副本与源文件哈希；常见私钥和访问令牌模式扫描无命中。未包含实际短信截图、用户配置、凭据、签名、安装包、缓存、日志或备份源码。
+- 首读说明区分已完成与待验项目，标明服务端源码和截图缺口；“识字库 / Wi-Fi 获取”仍待明确。Claude 默认提出方案，后续实现须回唯一工作区刷新交接并认领。
+- 未改应用功能、测试设备或部署状态，未提交或推送；原有 BUG.md 修改与 MainActivity.java.backup 保留。资料副本不会自动随源码更新。
+
+### 2026-10-01 / Codex / DONE — 本机安装与无线真机基础验收
+
+- 用户要求手机用无线调试、电脑由代理处理。独立 android-test MCP 已有无线连接，核对小米 2407FRK8EC、Android 16、HyperOS OS3.0、boot_completed=1，ro.kernel.qemu 为空。MCP 把无线真机误标为 emulator，未据此判断设备类型；只用 5038 与明确的无线设备标识，不操作其他 ADB。
+- 手机原版本为 v0.7.5/code15。用户解锁后通过独立 MCP 覆盖安装已发布 APK，实测 v0.7.6/code16；原账号仍已连接、待上传 0，未清除数据或重新登录。
+- 真机首页无此前兼容留白，系统栏和主要控件正常；输入法展开时 ScrollView 高度从 2574 降至约 1515，焦点输入框仍在可视区，收起后恢复。普通输入框与键盘截图已检查；密码框聚焦时截屏主体变黑，未修改系统保护，不能把该黑图当作视觉通过证据。教程自动选择小米/Redmi/POCO，标准电池优化已豁免，返回主页正常；未改电池、自启动、小锁、字体或旋转设置。
+- Windows 原进程来自 %LOCALAPPDATA%/Programs/MsgDock/MsgDock-Windows-v0.7.0.exe。将已验证哈希的新 EXE 复制到同目录，保留旧 EXE。升级前数据备份到该目录 backups/before-v0.7.6-20261001/XgyLanSms/，包含原配置、历史和通知账本，未放入仓库或上传。
+- 核对旧 PID 与路径后停止旧进程，以 --tray 隐藏启动新版。实际 HTTP 状态为 version=0.7.6、LAN 就绪、旧云与账号均已连接。已有开机启动项和 Toast 激活路径由新版自动更新到新 EXE；未启用原先关闭的开机项。升级后原历史哈希不变，配置只有 account.last_seq 正常前进，凭据未改。
+- 向本机 localhost 鉴权入口提交 3 条标记为“MsgDock 本机验收”的合成消息，均 HTTP 200 并落盘；最后验证码 482733 实际进入用户剪贴板，随后恢复此前剪贴板文本。测试只在本机，不发送真实 SMS，不上传账号云；3 条测试历史保留，没有删除用户记录。
+- Windows Computer Use 未返回可操作的托盘驻留窗口，未伪造通知按钮点击。额外通知中心读取因本机 PowerShell 无 WinRT 类型而失败，输出的默认计数无效，不能宣称本轮实际通知中心数量验证通过。前轮独立原生 API 合并测试仍有效。
+- 最近 crash buffer 中未见匹配 MsgDock 的记录。没有进行锁屏真实短信、后台保活、耗电量或通知按钮点击验收；本轮也没有重复发布、部署、提交或推送，仅本地记录。真机与独立 ADB 是本轮开始前已有连接，未强制关闭；旧版回退文件和用户备份源码保留。
+- 防重复错误：不要在双引号的嵌套 PowerShell 命令中用反斜杠转义美元变量；那会提前展开并造成解析失败。诊断脚本遇到类型加载失败应停止，不能将后续默认零值作为成功证据。手机每次导航后重新读取 UI，不连续依赖旧页面坐标。
 
 ### 2026-10-01 / Codex / DONE — v0.7.6 双端预览发布及网站下载
 

@@ -7,16 +7,18 @@ MsgDock 把 Android 收到的传统 SMS 同步到局域网 Windows、互联网 W
 ## 使用与下载
 
 - 网页收件箱：[msgdock.dpdns.org](https://msgdock.dpdns.org)
-- [Android v0.7.6 预览版](https://github.com/121103qwq/MsgDock/releases/download/v0.7.6/MsgDock-Android-v0.7.6-debug.apk)：沿用旧调试签名的 APK。
+- [Android v0.7.7 预览版](https://github.com/121103qwq/MsgDock/releases/download/v0.7.7/MsgDock-Android-v0.7.7-debug.apk)：沿用旧调试签名的 APK。
 - [Windows v0.7.6 预览版](https://github.com/121103qwq/MsgDock/releases/download/v0.7.6/MsgDock-Windows-v0.7.6.exe)：x64 单 EXE。
-- [版本说明、完整源码和 SHA-256 清单](https://github.com/121103qwq/MsgDock/releases/tag/v0.7.6)。
-- [公开源码与开发记录](https://github.com/121103qwq/MsgDock)。开发分支为 `maintenance/shared-workspace`，发布源码由标签 `v0.7.6` 固定，实机验收完成前不自动合并。
+- [Android 版本说明、完整源码和 SHA-256 清单](https://github.com/121103qwq/MsgDock/releases/tag/v0.7.7)；Windows 安装包及校验清单仍在 [v0.7.6](https://github.com/121103qwq/MsgDock/releases/tag/v0.7.6)。
+- [公开源码与开发记录](https://github.com/121103qwq/MsgDock)。开发分支为 `maintenance/shared-workspace`，Android 本次构建分支为 `release/msgdock-android-v0.7.7`。PR 保持未合并。
 
 这是预览版：Android 为调试签名，Windows 未做代码签名，锁屏/HyperOS 和真实短信端到端仍待实机验收。升级前请保留旧版备份；GitHub 下载在部分网络下可能较慢。
 
-## v0.7.7 候选（未发布）
+## Android v0.7.7 预览构建（2026-10-01）
 
-本节描述分支 `claude/ui-status-first` 上的改动，尚未发布安装包，也未经真机验收。
+本次 APK 基于 [harry-1211/MsgDock PR #1](https://github.com/harry-1211/MsgDock/pull/1) 的 `fd8d63b`。Windows v0.7.7 源码仍为候选，本次未构建或发布 Windows 安装包，下载保留 v0.7.6。
+
+Android SDK 构建、96 项 JVM 测试和旧证书签名核对通过。独立 Android 14 模拟器验证了系统栏、键盘、360 dp／200% 字体操作可达性、横屏、教程返回、LAN 落盘去重和验证码显示。真实 SMS、HyperOS 锁屏、后台保活、耗电量及通知按钮实际复制仍待专项验收；Gradle lint 受本机 loopback 故障限制。完整记录见 `DELIVERY-v0.7.7.md`。
 
 - 两端用同一套五种状态说明同步情况：同步正常、正在同步、同步延迟、同步中断、需要处理。规则见 `DESIGN.md` 的“同步状态模型”。
 - Android 首页依次为状态卡、待处理事项、最近 5 条短信、接收端、账号和高级设置。账号和高级设置默认折叠，待处理事项每条带一个处理按钮。
