@@ -12,7 +12,7 @@
 
 | Agent | 状态 | 本轮任务 | 独占文件/目录 | 开始时间 |
 |---|---|---|---|---|
-| Codex | IN_PROGRESS | 用户已授权发布 Android/Windows v0.7.6 预览版及网站下载，保留真机待验项 | 本轮已有 UI/通知改动、app/build.gradle、windows/main.go、web-ui/index.html、tools/test-web-ui.mjs、AGENTS.md、README.md、DESIGN.md、BUG.md、HANDOFF.md、DELIVERY-v0.7.6.md | 2026-10-01 |
+| Codex | DONE | Android/Windows v0.7.6 预览版与网站下载已发布并实际验哈希；真机待验项保留 | 无 | 2026-10-01 |
 | Zcode | IDLE | 无 | 无 | - |
 
 认领规则：
@@ -25,11 +25,11 @@
 ## 当前基线
 
 - 源码来源：`XgyLanSms-source-v0.6.1.zip` 的干净副本；未包含构建缓存、APK、EXE、`node_modules`、Wrangler 登录信息或密钥。
-- Android：v0.7.5 / versionCode 15，新增后台教程已在独立 Android 14 模拟器验证，已上传预览 Release 并更新网站下载。
-- Windows：v0.7.0，本地无控制台单 EXE 候选已构建。
+- Android：v0.7.6 / versionCode 16，布局与无效唤醒改进已发布，后台教程和历史功能保留。
+- Windows：v0.7.6，普通合并通知与验证码自动复制已发布；真实桌面交互待验。
 - Relay：旧 `/v1/*` v0.6.0 兼容逻辑保留；本地 v0.7.0 候选增加 D1 账号 API 与 Web。
-- 已知部署：`https://msgdock.dpdns.org`，部署 ID `07c86e6c-741d-478b-8afb-668183edd0b0`；旧 workers.dev 地址仍正常。
-- 上一基线验证：Android 25 个单元测试通过、lint 0 errors；Relay 测试/typecheck/dry-run 通过；Windows 测试、vet、GUI 构建曾通过。
+- 已知部署：`https://msgdock.dpdns.org`，部署 ID `1e3ef438-2086-4ca7-9bd4-17e9b5c2d017`；主备下载页面均已现场验证。
+- 本轮基线验证：Android 59 项 JVM、SDK 构建与签名通过；Windows test/vet/GUI 构建通过；网页 12 项、typecheck、dry-run 和线上下载检查通过。Gradle lint 未运行，不能沿用历史版本的 lint 结论。
 - 未完成：没有连接真实 Android/ADB 设备，因此恢复、锁屏、HyperOS 和真实 SMS 端到端仍需实机验收。
 
 ## 建议任务池
@@ -42,6 +42,20 @@
 | P2 | 设计 ACK 后云历史浏览/恢复 | 先只改 `DESIGN.md` | 用户确认需求与保留策略 |
 
 ## 交接记录
+
+### 2026-10-01 / Codex / DONE — v0.7.6 双端预览发布及网站下载
+
+- 用户明确回复“授权”，允许发布上一轮 UI、通知与空闲等待改动，并同步安装包、源码、清单和网站。只在唯一共享开发目录操作，Zcode 为 IDLE；未创建第二开发目录。
+- Android versionCode 16 / versionName 0.7.6；Windows appVersion 0.7.6。SDK 构建、59 项 JVM、v2/v3 签名通过；APK 的代码和资源哈希与前序模拟器验证候选一致。Go test/vet/GUI 构建通过，PE subsystem=2。网页下载测试增加核对 Windows 源码版本，12 项通过；Worker typecheck 和 keep-vars/strict dry-run 通过。
+- 功能源码提交 `7b728d723ef8cba8144d74f84e9779a8b4e4bd15`，远端标签 `v0.7.6` 已核对指向该提交。使用安全推送脚本原子推送 maintenance/shared-workspace 分支和标签；未动 main，未创建或合并 PR，原 PR #1/#2/#3 仍为 open。
+- [v0.7.6 预览 Release](https://github.com/121103qwq/MsgDock/releases/tag/v0.7.6) 已公开，isDraft=false、isPrerelease=true。上传前核对草稿资产 digest，公开后 APK、EXE、源码 ZIP、清单四项匿名 GET 均为 200，实际字节 SHA-256 与本地及 GitHub digest 全部匹配。下载验证文件保留在 build/download-verification-v0.7.6/。
+- APK 115870 字节，SHA-256 `C9E099BC7CEE9DD93EA55A0F86DD3E4093D73F9301A4D237B28EC64F9FD92226`；EXE 10535936 字节，SHA-256 `2B00BFB62C40639C249DEB4DBC593A71E85819AA4D4F1B38A20D9B59DE6B9719`。
+- 源码 ZIP 从固定提交 git archive 生成，含 123 个文件，363472 字节；不含备份源码、构建输出、local.properties、依赖目录或凭据文件，暂存源码敏感模式扫描无命中。SHA-256 `4A26C082AFE738EBD4C46F05B8E8A5DC4F98D7B42DE11895BF94F7AF023BD79A`；清单 SHA-256 `3724904F9DA713A0C7CEDE3E33251988796061D0E073944D567FD7568892654D`。
+- 网站部署 `1e3ef438-2086-4ca7-9bd4-17e9b5c2d017`，Wrangler 只上传修改的 /index.html，业务源码、配置、绑定、变量和 D1 未改。主域根页、/inbox、备用根页均 200，下载区及内联业务脚本逐字匹配；主备 health 200，匿名消息 401/no-store，微信 TXT 200 且内容未变。
+- 本轮未重新启动模拟器、安装到真机、使用真实账号或写用户剪贴板。Release 与文档继续明确真实 SMS、HyperOS、后台保活、耗电量和 Toast 点击/剪贴板端到端待验；服务器推送未实现。发布验收只证明资产与网站送达，不替代这些运行验收。
+- 发布需求—证据 audit 返回低置信度，未用其作为批准结论；主代理按实际构建、远端 API、下载哈希与网站 HTTP 证据逐项核对，没有重复调用以求通过。
+- 源码包固定在功能提交，不因本条发布后记录而重打包或移动标签。后续文档提交只记交付结果。MainActivity.java.backup 原样保留且未跟踪，旧版本资产未覆盖。
+- 本轮命令纠错：git grep 的 --cached 必须放在路径分隔符 -- 之前；首次参数位置错误未执行扫描，调整后已实际完成扫描再提交发布。
 
 ### 2026-10-01 / Codex / DONE — UI、通知与账号接收空闲等待（仅本地）
 

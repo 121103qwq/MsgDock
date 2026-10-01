@@ -120,7 +120,7 @@ Android SMS_RECEIVED
 ## 当前部署与版本边界
 
 - 默认 Relay：`https://msgdock.dpdns.org`；原 workers.dev 入口作为备用。
-- 2026-09-06 部署版本：`07c86e6c-741d-478b-8afb-668183edd0b0`（Android v0.7.5 下载链接）；后续部署前必须重新核对。
+- 2026-10-01 部署版本：`1e3ef438-2086-4ca7-9bd4-17e9b5c2d017`（Android / Windows v0.7.6 下载链接）；后续部署前必须重新核对。
 - `https://msgdock.dpdns.org` 已上线；D1 ID 为 `e9538d9c-f98a-40ae-b948-af7acdb56050`。
   本地客户端候选尚需真机验收，不能用线上 API 测试替代锁屏/真实短信/Toast 点击验证。
 - Android v0.7.6、Windows v0.7.6 与旧 Relay v0.6.0 保持协议兼容。下载区按平台分别标注版本，指向实际上传的 Release 资产与各自 SHA-256 清单。
