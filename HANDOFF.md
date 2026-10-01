@@ -12,7 +12,7 @@
 
 | Agent | 状态 | 本轮任务 | 独占文件/目录 | 开始时间 |
 |---|---|---|---|---|
-| Codex | IN_PROGRESS | PR #1 Android v0.7.7 构建及预览交付；Windows 下载保留 v0.7.6 | app/；tools/test-android-pr1-mcp.cjs；tools/test-web-ui.mjs；README.md；HANDOFF.md；DELIVERY-v0.7.7.md；web-ui/index.html；本轮 build/outputs | 2026-10-01 |
+| Codex | DONE | PR #1 Android v0.7.7 已构建及发布；Windows 下载保留 v0.7.6 | 无 | 2026-10-01 |
 | Zcode | IDLE | 无 | 无 | - |
 | Claude（云端） | DONE | 状态优先界面第二轮已完成（分支 `claude/ui-status-first`，未发布，待真机验收） | 无 | 2026-10-01 |
 | Claude | DONE | Android 保活与耗电（`claude/android-power-keepalive` 已由 Codex 按用户授权推送，未发布） | 无 | 2026-10-01 |
@@ -27,12 +27,12 @@
 ## 当前基线
 
 - 源码来源：`XgyLanSms-source-v0.6.1.zip` 的干净副本；未包含构建缓存、APK、EXE、`node_modules`、Wrangler 登录信息或密钥。
-- Android：v0.7.6 / versionCode 16，布局与无效唤醒改进已发布，后台教程和历史功能保留。
+- Android：v0.7.7 / versionCode 17，PR #1 状态优先界面已发布，后台教程和历史功能保留。
 - Windows：v0.7.6，普通合并通知与验证码自动复制已发布；真实桌面交互待验。
 - Relay：旧 `/v1/*` v0.6.0 兼容逻辑保留；本地 v0.7.0 候选增加 D1 账号 API 与 Web。
-- 已知部署：`https://msgdock.dpdns.org`，部署 ID `1e3ef438-2086-4ca7-9bd4-17e9b5c2d017`；主备下载页面均已现场验证。
-- 本轮基线验证：Android 59 项 JVM、SDK 构建与签名通过；Windows test/vet/GUI 构建通过；网页 12 项、typecheck、dry-run 和线上下载检查通过。Gradle lint 未运行，不能沿用历史版本的 lint 结论。
-- 未完成：HyperOS 真机覆盖升级与基础布局已验证；真实 SMS、锁屏、后台保活、耗电量及 Toast 按钮点击仍需专项验收。
+- 已知部署：`https://msgdock.dpdns.org`，部署 ID `6f0a8d9b-1347-4392-b2fa-57e2b98c0c72`；主备下载页面均已现场验证。
+- 本轮基线验证：Android 96 项 JVM、SDK 构建与签名、独立模拟器 6 组检查通过。网页 12 项、typecheck、dry-run 和线上下载检查通过。Windows 本轮未重编译，保留 v0.7.6 原资产及哈希。Gradle lint 未运行，不能沿用历史版本的 lint 结论。
+- 未完成：HyperOS 真机的 v0.7.6 覆盖升级与基础布局已验证，不能沿用为 v0.7.7 真机结果。真实 SMS、锁屏、后台保活、耗电量及通知按钮点击仍需专项验收。
 
 ## 建议任务池
 
@@ -45,14 +45,18 @@
 
 ## 交接记录
 
-### 2026-10-01 / Codex / IN_PROGRESS — PR #1 Android v0.7.7 本机打包
+### 2026-10-01 / Codex / DONE — PR #1 Android v0.7.7 打包与发布
 
 - 用户要求根据 harry-1211/MsgDock PR #1 重新打 APK；按此前每版交付规则补安装包、源码、SHA-256 和网站链接。本轮仅发布 Android，Windows 下载保留 v0.7.6。PR 保持未合并。
 - 在唯一开发目录取 PR 到 harry/pr-1 并锁定 fd8d63b；以 release/msgdock-android-v0.7.7 构建。原先 BUG/HANDOFF 本地记录通过 stash 备份并合并保留，资料包和 MainActivity.java.backup 未覆盖，未进入发布源码。恢复 HANDOFF 时保留本地与云端两边记录；两次 stash 均保留可恢复副本。
 - APK 使用 PR 原样 app 源码，版本 0.7.7/code17。首次构建的 0595ee4 与最新 fd8d63b 的 app tree 相同；新提交只涉及 Windows 和文档。96 项 JVM、SDK 构建、v2/v3 签名通过，旧 APK 实证证书一致。Gradle 仍在主机 loopback 阶段失败，lint 未运行。
 - 独立 Android 14 MCP：6 组检查通过，7 张截图已检查，crash buffer 为空。覆盖账号折叠、键盘恢复、360 dp／200% 字体、横屏、教程、实际本地 HTTP 落盘去重与验证码显示。仅查看通知复制操作存在，未宣称实际剪贴板点击验收。报告 build/android-pr1-2026-10-01T13-02-29-008Z/result.json。
 - 本轮纠错：检查源码脏状态须排除用户未跟踪 backup，不能误判为已跟踪源码修改；正则文本补丁用原始字符串，避免转义失配；同一文件不能在一个 apply_patch 中同时 Delete/Add，改用 Update。初次守卫或补丁失败未覆盖用户文件。保留源码快照与真实测试证据，不以工具错误后的默认值报告成功。
-- 交付上传、匿名下载哈希和网站实际验证仍待执行。真实短信、HyperOS 锁屏、后台保活和耗电量仍未验收。
+- 固定交付提交 `e7554572a6f8f69947938be6bd84457047c076e4` 已推送到 release/msgdock-android-v0.7.7，v0.7.7 标签指向同一提交。公开预览 Release 提供 APK、完整源码 ZIP 和 SHA-256 清单，共 3 个资产。逐项匿名实际下载均为 HTTP 200，本地、GitHub digest 与下载文件哈希一致。PR 仍 open、merged=false，未修改 main 或自动合并。
+- 网站仅上传修改后的 index.html，部署 ID `6f0a8d9b-1347-4392-b2fa-57e2b98c0c72`。主站首页、/inbox、备用首页均为 200，下载区和业务脚本与本地一致。主备 health 为 200；匿名 messages 为 401/no-store；微信验证 TXT 内容保留。Windows v0.7.6 EXE 和原清单实际下载均为 200，原哈希不变。证据见 build/release-v0.7.7-verification/live-result.json。
+- 独立模拟器已优雅退出。android-test MCP 现场列表确认 emulator-5680 消失，原无线真机连接仍保留。未安装新 APK 到用户真机，未停止既有独立 ADB。
+- 需求—证据辅助审计对部分摘要返回低置信度，不作为验收通过。主代理直接复核 PR app tree、模拟器结果、实际下载哈希、线上页面及远端标签；真实短信、HyperOS 锁屏、后台保活和耗电量仍未验收。
+- 本轮补充纠错：草稿 Release 按 tag 的 API 查询曾返回 404，不能据此判断上传失败或重复创建。应先通过 Release 列表或 ID 核对草稿资产，再公开并检查 tag 地址。本轮草稿 3 个资产均完整，公开后 tag API 正常。
 
 ### 2026-10-01 / Claude（云端）/ DONE — 五态状态模型与界面第二轮（分支候选，未发布）
 

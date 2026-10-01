@@ -58,4 +58,23 @@ tools/test-android-pr1-mcp.cjs 通过 6 组检查：
 
 APK SHA-256：D621D5212DB4192524E71311CC14DFFE09C2274992B01D5123D7B12BE270B83F。
 
-按用户此前规则，发布到 121103qwq/MsgDock 的 v0.7.7 预览 Release，并更新网站 Android、源码和清单链接。实际上传、匿名下载哈希及网站核对结果在后续交接记录中补记；本节计划本身不等于发布成功。
+源码 SHA-256：F1A95FAB62C9654CC71B67E19660520384772CCE05E3A9B18B6CFA333452B358。
+
+清单自身 SHA-256：C9A22983EBE3491F761A73A5D25E0CE59110B0780203D0554DDE1F1DC146BB84。
+
+## 发布核对
+
+已发布到 [v0.7.7 预览 Release](https://github.com/121103qwq/MsgDock/releases/tag/v0.7.7)。Release ID 为 400984204，draft=false、prerelease=true。固定交付源码提交为 e7554572a6f8f69947938be6bd84457047c076e4，远端标签与源码 ZIP 均对应该提交。发布后补记文档不移动标签，也不替换已核对的资产。
+
+三个资产逐项匿名实际下载均为 HTTP 200。下载文件的 SHA-256 与本地文件和 GitHub digest 完全一致。PR 仍为 open、merged=false。本次未修改 main，也未自动合并 PR。
+
+网站已部署到 [下载区](https://msgdock.dpdns.org/#downloads)，部署 ID 为 6f0a8d9b-1347-4392-b2fa-57e2b98c0c72。本轮只上传 index.html 的下载区修改，保留既有业务源码、绑定、变量、路由和凭据。
+
+线上检查通过：
+
+- 主站首页、/inbox 和备用首页返回 200。下载区和业务脚本与本地文件一致。
+- 主备 health 返回 200。匿名 messages 返回 401，带 no-store。
+- 微信验证 TXT 返回 200，内容与原文件一致。
+- Windows v0.7.6 EXE 和对应清单仍使用原链接。实际下载均为 200，原 SHA-256 不变。
+
+线上证据：build/release-v0.7.7-verification/live-result.json。独立模拟器已退出，原无线真机连接未操作。v0.7.7 未安装到用户真机。
