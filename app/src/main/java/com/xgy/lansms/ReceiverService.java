@@ -98,6 +98,7 @@ public class ReceiverService extends Service {
         }
         unregisterAccountNetworkCallback();
         unregisterPowerEvents();
+        SyncClock.clearPollDelays();
         AccountStore.prefs(this).unregisterOnSharedPreferenceChangeListener(accountSettings);
         TargetStore.prefs(this).unregisterOnSharedPreferenceChangeListener(cloudSettings);
         wakeAccountReceiver();
@@ -217,7 +218,7 @@ public class ReceiverService extends Service {
             }
             if ("GET".equals(method) && "/".equals(path)) {
                 String code = TargetStore.ensurePairCode(this);
-                String html = "<html><meta charset=utf-8><body style='font-family:sans-serif'><h2>MsgDock</h2><p>Android Pad 接收端正在运行</p><p>端口: 58123</p><p>配对码: <b style='font-size:28px'>" + code + "</b></p></body></html>";
+                String html = "<html><meta charset=utf-8><body style='font-family:sans-serif'><h2>MsgDock</h2><p>Android Pad 接收端正在运行</p><p>端口: 58123</p><p>局域网配对码: <b style='font-size:28px'>" + code + "</b></p></body></html>";
                 respond(out, 200, "text/html; charset=utf-8", html.getBytes(StandardCharsets.UTF_8));
                 return;
             }
@@ -229,6 +230,7 @@ public class ReceiverService extends Service {
             byte[] body = readFully(in, len);
             JSONObject j = new JSONObject(new String(body, StandardCharsets.UTF_8));
             if (CloudInboxStore.acceptLan(this, j)) {
+                SyncClock.markReceived(this, j.optString("device", "Phone"));
                 String id = j.optString("id", "");
                 if (id.isEmpty()) {
                     Notifications.showSms(this, j.optString("from", "短信"), j.optString("text", ""), j.optString("device", "Phone"));
@@ -352,6 +354,7 @@ public class ReceiverService extends Service {
                 android.util.Log.w("XgyLanSms", "Cloud receive poll failed", e);
             }
             refreshServiceNotification();
+            SyncClock.setCloudPollDelay(delay); // read-only mirror for the status card
             if (delay != lastSavedCloudDelay) {
                 TargetStore.prefs(this).edit().putLong("cloud_receive_next_delay_ms", delay).apply();
                 lastSavedCloudDelay = delay;
@@ -533,6 +536,7 @@ public class ReceiverService extends Service {
                 delay = 3000L;
                 emptyRounds = 0;
             }
+            SyncClock.setAccountPollDelay(enabled ? delay : 0L); // read-only mirror for the status card
             synchronized (accountWake) {
                 if (!running) return;
                 // Guard against a setting/network change between the check and

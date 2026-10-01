@@ -16,7 +16,7 @@ import (
 // SuppressPopup. These small WinRT bindings supply those properties without a
 // PowerShell process or a fork of the dependency. ABI source: Microsoft's
 // windows-rs Windows/UI/Notifications and Windows/Data/Xml/Dom bindings.
-const smsToastTag = "latest-sms"
+// The Tag is per sender (smsToastTagFor); the Group stays fixed.
 const smsToastGroup = "msgdock-sms"
 
 var toastCombase = windows.NewLazySystemDLL("combase.dll")
@@ -83,16 +83,16 @@ func (s *nativeToastSender) close() {
 	s.initialized = false
 }
 
-func (s *nativeToastSender) push(xml string, suppress bool) error {
+func (s *nativeToastSender) push(xml, tag string, suppress bool) error {
 	if err := s.initialize(); err != nil {
 		return err
 	}
-	return pushTaggedToast(notificationAppID, xml, suppress)
+	return pushTaggedToast(notificationAppID, xml, tag, suppress)
 }
 
 // Called only on the notification worker's locked MTA thread. Every factory,
 // interface, HSTRING and initialization reference has a matching release.
-func newTaggedToast(xml string, suppress bool) (*ole.IUnknown, error) {
+func newTaggedToast(xml, tag string, suppress bool) (*ole.IUnknown, error) {
 	doc, err := ole.RoActivateInstance("Windows.Data.Xml.Dom.XmlDocument")
 	if err != nil {
 		return nil, err
@@ -130,7 +130,7 @@ func newTaggedToast(xml string, suppress bool) (*ole.IUnknown, error) {
 		return nil, err
 	}
 	defer properties.Release()
-	if err := toastStringCall(&properties.IUnknown, 6, smsToastTag); err != nil {
+	if err := toastStringCall(&properties.IUnknown, 6, tag); err != nil {
 		return nil, err
 	}
 	if err := toastStringCall(&properties.IUnknown, 8, smsToastGroup); err != nil {
@@ -147,8 +147,8 @@ func newTaggedToast(xml string, suppress bool) (*ole.IUnknown, error) {
 	return toast, nil
 }
 
-func pushTaggedToast(appID, xml string, suppress bool) error {
-	toast, err := newTaggedToast(xml, suppress)
+func pushTaggedToast(appID, xml, tag string, suppress bool) error {
+	toast, err := newTaggedToast(xml, tag, suppress)
 	if err != nil {
 		return err
 	}

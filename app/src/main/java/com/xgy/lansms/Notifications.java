@@ -27,7 +27,7 @@ public final class Notifications {
         int cloudReceivers = CloudConfigStore.receiverLinks(c).size();
         String cloud = AccountStore.receiveEnabled(c) && AccountStore.hasAccount(c) ? "账号接收已开启"
                 : cloudReceivers == 0 ? "云接收未配对" : "云接收 " + cloudReceivers + " 条链路";
-        return "端口 58123 · 配对码 " + code + " · " + cloud;
+        return "端口 58123 · 局域网配对码 " + code + " · " + cloud;
     }
 
     public static Notification serviceNotification(Context c, String code) {
@@ -60,6 +60,7 @@ public final class Notifications {
                 .setContentTitle("MsgDock")
                 .setContentText("收到 1 条短信")
                 .build();
+        int id = (int)(System.currentTimeMillis() & 0x7fffffff);
         Notification.Builder b = new Notification.Builder(c, SMS_CH)
                 .setSmallIcon(android.R.drawable.sym_action_email)
                 .setContentTitle(code.isEmpty() ? sender : sender + " · 验证码 " + code)
@@ -72,8 +73,20 @@ public final class Notifications {
                 .setContentIntent(android.app.PendingIntent.getActivity(c, 0,
                     new android.content.Intent(c, MainActivity.class), android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT))
                 .setAutoCancel(true);
+        if (!code.isEmpty()) {
+            // Explicit, non-exported receiver; the per-notification request code keeps
+            // each code's PendingIntent distinct instead of overwriting the previous one.
+            android.content.Intent copy = new android.content.Intent(c, OtpCopyReceiver.class)
+                    .setAction(OtpCopyReceiver.ACTION_COPY)
+                    .putExtra(OtpCopyReceiver.EXTRA_CODE, code);
+            android.app.PendingIntent pending = android.app.PendingIntent.getBroadcast(c, id, copy,
+                    android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT);
+            b.addAction(new Notification.Action.Builder(
+                    android.graphics.drawable.Icon.createWithResource(c, android.R.drawable.ic_menu_save),
+                    "复制验证码", pending).build());
+        }
         try {
-            nm.notify((int)(System.currentTimeMillis() & 0x7fffffff), b.build());
+            nm.notify(id, b.build());
             return true;
         } catch (RuntimeException ignored) {
             return false;

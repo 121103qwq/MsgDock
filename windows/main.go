@@ -26,7 +26,7 @@ const (
 	httpPort      = 58123
 	discoveryPort = 58124
 	appName       = "MsgDock"
-	appVersion    = "0.7.6"
+	appVersion    = "0.7.7"
 	// defaultRelayURL is kept in one place so the desktop client and its
 	// installer can be changed without hunting through the cloud code.
 	defaultRelayURL = "https://xgy-sms-relay.xgy2021sh.workers.dev"
@@ -40,7 +40,10 @@ type Config struct {
 	Cloud               CloudCredentials   `json:"cloud"`
 	Account             AccountCredentials `json:"account"`
 	TrayFallbackEnabled bool               `json:"trayFallbackEnabled"`
-	trayFallbackPresent bool               `json:"-"`
+	// NotificationPreview is "full", "sender" or "minimal"; see
+	// parseNotificationPreview. Missing (configs from older versions) means full.
+	NotificationPreview string `json:"notificationPreview,omitempty"`
+	trayFallbackPresent bool   `json:"-"`
 }
 
 // UnmarshalJSON keeps old config files compatible while recording whether the
@@ -52,6 +55,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		Cloud               CloudCredentials   `json:"cloud"`
 		Account             AccountCredentials `json:"account"`
 		TrayFallbackEnabled bool               `json:"trayFallbackEnabled"`
+		NotificationPreview string             `json:"notificationPreview"`
 	}
 	var fields configFields
 	if err := json.Unmarshal(data, &fields); err != nil {
@@ -66,6 +70,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 	c.Cloud = fields.Cloud
 	c.Account = fields.Account
 	c.TrayFallbackEnabled = fields.TrayFallbackEnabled
+	c.NotificationPreview = fields.NotificationPreview
 	_, c.trayFallbackPresent = raw["trayFallbackEnabled"]
 	if !c.trayFallbackPresent {
 		c.TrayFallbackEnabled = true
@@ -93,7 +98,8 @@ type App struct {
 	pending          []pendingNotification
 	pendingLoaded    bool
 	closing          atomic.Bool
-	notifyFailed     atomic.Bool // latest native Toast attempt failed; shown in the status header
+	notifyFailed     atomic.Bool  // latest native Toast attempt failed; shown in the status header
+	sending          atomic.Int32 // fetches that carried new messages, and their ACKs, currently in flight
 	logFile          *os.File
 	recent           []SMS
 	seenIDs          map[string]struct{}
@@ -296,6 +302,27 @@ func (a *App) setTrayFallbackEnabled(enabled bool) error {
 		cfg.trayFallbackPresent = true
 	})
 }
+
+func (a *App) notificationPreview() notificationPreview {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return parseNotificationPreview(a.cfg.NotificationPreview)
+}
+
+func (a *App) setNotificationPreview(preview notificationPreview) error {
+	return a.updateConfig(func(cfg *Config) {
+		cfg.NotificationPreview = string(parseNotificationPreview(string(preview)))
+	})
+}
+
+// beginSending/endSending are passive bookkeeping for the 同步中 state: they
+// bracket the processing and ACK of a poll that returned new messages. Empty
+// polls never call them, so the state does not flash every 3 seconds.
+func (a *App) beginSending() { a.sending.Add(1) }
+
+func (a *App) endSending() { a.sending.Add(-1) }
+
+func (a *App) isSending() bool { return a.sending.Load() > 0 }
 
 func (a *App) cloudCredentials() CloudCredentials {
 	a.mu.RLock()

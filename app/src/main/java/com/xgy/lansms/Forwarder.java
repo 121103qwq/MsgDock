@@ -116,6 +116,7 @@ public final class Forwarder {
 
     public static void send(Context c, TargetStore.Target t, String id, String from, String text, long receivedAt, int sim, String device) {
         HttpURLConnection conn = null;
+        SyncClock.beginRequest(); // status bookkeeping only
         try {
             JSONObject body = new JSONObject();
             body.put("id", id == null || id.isEmpty() ? UUID.randomUUID().toString() : id);
@@ -145,6 +146,7 @@ public final class Forwarder {
             SyncClock.markLan(c, false, t.name);
             android.util.Log.w("XgyLanSms", "Forward failed: " + t.label(), e);
         } finally {
+            SyncClock.endRequest();
             if (conn != null) conn.disconnect();
         }
     }
