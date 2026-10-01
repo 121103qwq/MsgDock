@@ -1,0 +1,32 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.xgy.lansms'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.xgy.lansms'
+        minSdk 26
+        targetSdk 36
+        versionCode 16
+        versionName '0.7.6'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303' // Real JSON on the host JVM; not bundled in the APK.
+}

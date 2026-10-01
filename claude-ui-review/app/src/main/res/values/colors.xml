@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Deep tonal surfaces — SMS relay domain uses cyan-teal palette -->
+    <color name="surface_00">#050A0D</color>
+    <color name="surface_01">#0A1214</color>
+    <color name="surface_02">#0F1A1E</color>
+    <color name="surface_03">#152228</color>
+    <color name="surface_04">#1B2A32</color>
+    <color name="surface_05">#21323C</color>
+
+    <!-- Accent — luminous cyan for messaging/connectivity -->
+    <color name="accent_primary">#38BDF8</color>
+    <color name="accent_primary_dim">#1E88B8</color>
+    <color name="accent_primary_bright">#60D5FF</color>
+
+    <!-- Supporting tint — emerald for success states -->
+    <color name="accent_success">#6EE7B7</color>
+    <color name="accent_warning">#F59E0B</color>
+    <color name="accent_error">#EF4444</color>
+
+    <!-- Text hierarchy -->
+    <color name="text_primary">#F8FAFC</color>
+    <color name="text_secondary">#CBD5E1</color>
+    <color name="text_tertiary">#94A3B8</color>
+    <color name="text_disabled">#64748B</color>
+
+    <!-- Semantic -->
+    <color name="divider">#1E293B</color>
+    <color name="overlay_scrim">#CC000000</color>
+</resources>

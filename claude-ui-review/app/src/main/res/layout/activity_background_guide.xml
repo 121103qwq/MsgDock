@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/surface_00"
+    android:fitsSystemWindows="true" android:padding="@dimen/spacing_md">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical">
+        <Button android:id="@+id/guide_back" style="@style/Button.Outlined"
+            android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="返回"/>
+        <TextView style="@style/Text.Title.Large" android:layout_width="0dp"
+            android:layout_height="wrap_content" android:layout_weight="1"
+            android:layout_marginStart="@dimen/spacing_md" android:text="后台运行教程"/>
+    </LinearLayout>
+    <Button android:id="@+id/guide_brand" style="@style/Button.Secondary"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_sm" android:layout_marginBottom="@dimen/spacing_sm"/>
+
+    <ScrollView android:id="@+id/guide_scroll" android:layout_width="match_parent"
+        android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:paddingBottom="@dimen/spacing_md">
+            <TextView android:id="@+id/guide_device" style="@style/Text.Caption"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/spacing_md"/>
+            <TextView style="@style/Text.Body" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="只为 MsgDock 设置以下三项。教程可离线阅读，按钮只打开设置，不会替你更改开关。放宽后台限制可能增加耗电。"
+                android:layout_marginBottom="@dimen/spacing_md"/>
+
+            <LinearLayout style="@style/Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                <TextView style="@style/Text.Title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="1 · 放宽电池限制"/>
+                <TextView android:id="@+id/guide_battery" style="@style/Text.Body" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_sm" android:textIsSelectable="true"/>
+                <TextView android:id="@+id/guide_battery_status" style="@style/Text.Caption" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_md"/>
+                <Button android:id="@+id/guide_battery_settings" style="@style/Button.Outlined" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="系统电池优化列表" android:layout_marginTop="@dimen/spacing_sm"/>
+            </LinearLayout>
+
+            <LinearLayout style="@style/Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                <TextView style="@style/Text.Title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="2 · 锁定最近任务中的应用"/>
+                <TextView android:id="@+id/guide_recents" style="@style/Text.Body" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_sm" android:textIsSelectable="true"/>
+                <TextView style="@style/Text.Caption" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_md" android:text="后台小锁（🔒）≠ 带密码的应用锁 ≠ 屏幕固定。它主要防止一键清理，不能保证永不被系统结束。"/>
+            </LinearLayout>
+
+            <LinearLayout style="@style/Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                <TextView style="@style/Text.Title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="3 · 允许自启动"/>
+                <TextView android:id="@+id/guide_autostart" style="@style/Text.Body" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_sm" android:textIsSelectable="true"/>
+                <Button android:id="@+id/guide_app_settings" style="@style/Button.Outlined" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="打开 MsgDock 应用信息" android:layout_marginTop="@dimen/spacing_md"/>
+            </LinearLayout>
+
+            <TextView style="@style/Text.Title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="版本差异与确认方法"/>
+            <TextView android:id="@+id/guide_note" style="@style/Text.Body" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_sm" android:textIsSelectable="true"/>
+            <TextView style="@style/Text.Body" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_md"
+                android:text="设置后回到 MsgDock，确认所需权限、接收状态和转发链路。可锁屏一段时间后，用不含敏感内容的测试短信验证目标端是否收到。重启或系统升级后再检查一次；被手动强行停止后，需要重新打开应用。\n\n教程依据厂商公开资料整理，未在所有品牌真机逐一验证。"/>
+            <Button android:id="@+id/guide_sources" style="@style/Button.Outlined" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="查看本品牌官方参考资料" android:layout_marginTop="@dimen/spacing_md"/>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

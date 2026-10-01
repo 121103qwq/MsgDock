@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>MsgDock</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f4f7f8; --panel:#fff; --panel-muted:#eaf0f2; --text:#162226; --muted:#617178; --line:#d9e3e6; --accent:#087ea4; --accent-strong:#05627f; --danger:#b42318; --shadow:0 14px 42px rgba(19,49,58,.09); }
+    @media (prefers-color-scheme: dark) { :root { --bg:#0b1113; --panel:#121a1d; --panel-muted:#192529; --text:#edf6f8; --muted:#9eb0b7; --line:#2a3b40; --accent:#55c7e8; --accent-strong:#9ce6f8; --danger:#ff8d86; --shadow:0 18px 50px rgba(0,0,0,.3); } }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    button,input { font:inherit; } button { cursor:pointer; } a { color:var(--accent); text-decoration:none; }
+    .app { min-height:70vh; } .topbar { display:flex; align-items:center; justify-content:space-between; gap:1rem; max-width:1100px; margin:auto; padding:1.2rem 1.25rem; }
+    .brand { color:var(--text); font-size:1.25rem; font-weight:760; letter-spacing:-.02em; } .brand span { color:var(--accent); }
+    .nav { display:flex; gap:.35rem; align-items:center; flex-wrap:wrap; } .nav a,.nav button { border:0; border-radius:999px; background:transparent; color:var(--muted); padding:.45rem .75rem; } .nav a.active,.nav a:hover,.nav button:hover { background:var(--panel-muted); color:var(--text); }
+    .main { max-width:1100px; margin:auto; padding:0 1.25rem 3rem; } .panel { background:var(--panel); border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow); }
+    .page-head { display:flex; justify-content:space-between; align-items:end; gap:1rem; margin:1.5rem 0 1rem; } h1,h2,h3,p { margin:0; } h1 { font-size:clamp(1.6rem,4vw,2.35rem); letter-spacing:-.035em; } h2 { font-size:1.15rem; }
+    .muted { color:var(--muted); } .eyebrow { color:var(--accent); font-size:.78rem; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
+    .button { border:1px solid transparent; border-radius:10px; padding:.62rem .9rem; font-weight:680; } .button.primary { background:var(--accent); color:#fff; } .button.primary:hover { background:var(--accent-strong); } .button.subtle { background:var(--panel-muted); border-color:var(--line); color:var(--text); } .button.danger { background:transparent; border-color:color-mix(in srgb,var(--danger) 55%,transparent); color:var(--danger); } .button:disabled { cursor:wait; opacity:.55; }
+    .auth-wrap { display:grid; min-height:70vh; place-items:center; padding:1.25rem; } .auth-card { width:min(100%,420px); padding:2rem; } .auth-card .brand { display:block; margin-bottom:1.7rem; font-size:1.45rem; } .auth-card h1 { margin-bottom:.4rem; font-size:1.7rem; }
+    .downloads { max-width:1100px; margin:auto; padding:1.5rem 1.25rem 2rem; border-top:1px solid var(--line); }
+    .download-links { display:flex; flex-wrap:wrap; gap:.65rem; margin:.85rem 0; }
+    .downloads p { color:var(--muted); font-size:.85rem; } .downloads a:focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
+    .form { display:grid; gap:1rem; margin-top:1.4rem; } label { display:grid; gap:.38rem; color:var(--muted); font-size:.88rem; font-weight:620; } input { width:100%; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--text); padding:.72rem .8rem; outline:none; } input:focus { border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent); } .form .button { width:100%; } .form-note { color:var(--muted); text-align:center; font-size:.9rem; } .error { border-radius:10px; background:color-mix(in srgb,var(--danger) 12%,transparent); color:var(--danger); padding:.7rem .8rem; }
+    .summary { display:grid; grid-template-columns:repeat(3,1fr); gap:.8rem; margin:1rem 0; } .summary-item { padding:1rem; } .summary-item strong { display:block; font-size:1.6rem; } .summary-item span { color:var(--muted); font-size:.84rem; }
+    .message-list,.device-list { display:grid; gap:.6rem; padding:.7rem; } .message,.device { border:1px solid var(--line); border-radius:13px; padding:1rem; } .message { display:grid; grid-template-columns:1fr auto; gap:.8rem; } .message-main { min-width:0; } .message-title { display:flex; align-items:baseline; gap:.6rem; flex-wrap:wrap; } .sender { font-size:1.02rem; font-weight:760; } .message-time,.device-meta { color:var(--muted); font-size:.82rem; } .message-preview { margin-top:.28rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .message.open .message-preview { white-space:pre-wrap; overflow-wrap:anywhere; } .message-actions { display:flex; align-items:start; gap:.4rem; flex-wrap:wrap; justify-content:end; } .mini-button { border:1px solid var(--line); border-radius:8px; background:var(--panel-muted); color:var(--text); padding:.35rem .55rem; font-size:.8rem; } .code { color:var(--accent); font-weight:780; } .empty { padding:2.5rem 1rem; color:var(--muted); text-align:center; }
+    .device { display:flex; align-items:center; justify-content:space-between; gap:1rem; } .device-name { font-weight:730; } .device-type { display:inline-block; margin-left:.4rem; border-radius:999px; background:var(--panel-muted); color:var(--muted); padding:.12rem .5rem; font-size:.74rem; }
+    .settings { padding:1.25rem; display:grid; gap:.8rem; } .settings-row { display:flex; justify-content:space-between; gap:1rem; border-bottom:1px solid var(--line); padding:.7rem 0; } .settings-row:last-child { border:0; } .toast { position:fixed; right:1rem; bottom:1rem; z-index:5; max-width:min(360px,calc(100vw - 2rem)); border:1px solid var(--line); border-radius:10px; background:var(--panel); box-shadow:var(--shadow); padding:.8rem 1rem; }
+    @media (max-width:620px) { .topbar { align-items:start; flex-direction:column; } .nav { width:100%; justify-content:space-between; } .summary { grid-template-columns:1fr; } .message { grid-template-columns:1fr; } .message-actions { justify-content:start; } .device { align-items:start; flex-direction:column; } }
+  </style>
+</head>
+<body>
+  <div id="app" class="app"><div class="auth-wrap"><div class="muted">正在连接 MsgDock…</div></div></div>
+  <footer id="downloads" class="downloads" aria-labelledby="downloads-title">
+    <h2 id="downloads-title">下载 MsgDock <span class="muted">预览版</span></h2>
+    <div class="download-links">
+      <a class="button subtle" href="https://github.com/121103qwq/MsgDock/releases/download/v0.7.6/MsgDock-Android-v0.7.6-debug.apk">Android v0.7.6 APK</a>
+      <a class="button subtle" href="https://github.com/121103qwq/MsgDock/releases/download/v0.7.6/MsgDock-Windows-v0.7.6.exe">Windows v0.7.6 · 64 位 EXE</a>
+      <a class="button subtle" href="https://github.com/121103qwq/MsgDock/releases/download/v0.7.6/MsgDock-source-v0.7.6.zip">完整源码 v0.7.6 ZIP</a>
+    </div>
+    <p>Android 使用调试签名，Windows 未做代码签名；锁屏转发等真实设备场景仍待验收。请先保留旧版备份。</p>
+    <p>文件托管于 GitHub，网络不佳时可稍后重试。<a href="https://github.com/121103qwq/MsgDock/releases/tag/v0.7.6">版本说明</a> · <a href="https://github.com/121103qwq/MsgDock/releases/download/v0.7.6/SHA256SUMS-v0.7.6.txt">安装包 / 源码 SHA-256</a> · <a href="https://github.com/121103qwq/MsgDock">GitHub 源码</a></p>
+  </footer>
+  <script>
+    (() => {
+      if (location.protocol === 'http:') {
+        location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+        return;
+      }
+      const app = document.getElementById('app');
+      const PAGE_SIZE = 100;
+      const MAX_LOCAL_MESSAGES = 200;
+      const state = { user:null, messages:[], devices:[], lastSeq:0, resumeCursor:0, pollTimer:null, busy:false, retryDelay:3000 };
+      const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+      const codeOf = (value) => (String(value ?? '').match(/\b\d{4,8}\b/) || [])[0] || '';
+      const labelType = (type) => ({android:'Android',windows:'Windows',web:'Web'}[type] || type || '设备');
+      const timeOf = (value) => { const date = new Date(Number(value)); return Number.isNaN(date.getTime()) ? '时间未知' : date.toLocaleString([], {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}); };
+      const seqKey = () => state.user ? `msgdock:last-seq:${state.user.id}` : '';
+      const toast = (message) => { const node = document.createElement('div'); node.className='toast'; node.textContent=message; document.body.appendChild(node); setTimeout(() => node.remove(), 2600); };
+
+      async function api(path, options = {}) {
+        const headers = new Headers(options.headers || {}); if (options.body !== undefined) headers.set('content-type','application/json');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        try {
+          const response = await fetch(path, {...options,headers,credentials:'same-origin',cache:'no-store',signal:controller.signal});
+          // A truncated response is a failure, not an empty successful inbox.
+          const data = response.status===204 ? {} : await response.json();
+          if (!response.ok) { const errors = {cors_forbidden:'当前页面来源不受支持，请直接打开 https://msgdock.dpdns.org/register 后重试。',https_required:'请刷新页面，使用 HTTPS 安全连接后重试。'}; const error = new Error(errors[data.error] || data.error || `请求失败（${response.status}）`); error.status=response.status; throw error; }
+          return data;
+        } catch(error) {
+          if(controller.signal.aborted) throw new Error('请求超时，请稍后重试；注册超时可先尝试登录确认结果。');
+          throw error;
+        } finally { clearTimeout(timeout); }
+      }
+      function stopPolling() { if (state.pollTimer) clearTimeout(state.pollTimer); state.pollTimer=null; }
+      function startPolling(delay=state.retryDelay) {
+        stopPolling();
+        if (location.pathname==='/inbox' && state.user && !document.hidden && navigator.onLine!==false)
+          state.pollTimer=setTimeout(() => loadMessages(false),delay);
+      }
+      function syncStatus(message) { const node=document.getElementById('sync-status'); if(node) node.textContent=message; }
+      function resumePolling() {
+        if(document.hidden||navigator.onLine===false) { stopPolling(); syncStatus('同步已暂停，返回页面或恢复网络后补齐'); }
+        else { state.retryDelay=3000; startPolling(0); }
+      }
+      function navigate(path) { if (location.pathname!==path) history.pushState({},'',path); renderRoute(); }
+
+      function authView(mode,error='') {
+        const register=mode==='register';
+        app.innerHTML=`<main class="auth-wrap"><section class="panel auth-card"><a class="brand" href="/">Msg<span>Dock</span></a><p class="eyebrow">短信同步</p><h1>${register?'创建账号':'登录 MsgDock'}</h1><p class="muted">${register?'账号登录后即可在手机、Windows 和 Web 查看同步短信。':'使用用户名或邮箱继续。'}</p>${error?`<div class="error" role="alert" style="margin-top:1rem">${esc(error)}</div>`:''}<form class="form" id="${register?'register-form':'login-form'}">${register?'<label>用户名<input name="username" minlength="3" maxlength="64" autocomplete="username" required></label><label>邮箱（可选）<input name="email" type="email" autocomplete="email"></label>':'<label>用户名 / 邮箱<input name="identifier" autocomplete="username" required></label>'}<label>密码<input name="password" type="password" minlength="8" maxlength="128" autocomplete="${register?'new-password':'current-password'}" required></label><button class="button primary" type="submit">${register?'注册':'登录'}</button></form><p class="form-note" style="margin-top:1.2rem">${register?'已有账号？':'还没有账号？'} <a href="/${register?'login':'register'}">${register?'直接登录':'创建账号'}</a></p></section></main>`;
+      }
+
+      function shell(content,active) { app.innerHTML=`<header class="topbar"><a class="brand" href="/inbox">Msg<span>Dock</span></a><nav class="nav" aria-label="主导航"><a class="${active==='inbox'?'active':''}" href="/inbox">收件箱</a><a class="${active==='devices'?'active':''}" href="/devices">设备</a><a class="${active==='settings'?'active':''}" href="/settings">设置</a><button data-action="logout">退出</button></nav></header><main class="main">${content}</main>`; }
+
+      function inboxView() {
+        const count=state.messages.length, latest=state.messages[0];
+        const list=state.messages.length?state.messages.map((message)=>{ const code=codeOf(message.body); return `<article class="message" data-message="${esc(message.seq)}"><div class="message-main"><div class="message-title"><span class="sender">${esc(message.sender)}</span><span class="message-time">${esc(timeOf(message.received_at))}</span></div><div class="message-preview">${esc(message.body)}</div><div class="message-time" style="margin-top:.45rem">来源：${esc(message.source_device?.name||'未知设备')}</div></div><div class="message-actions"><button class="mini-button" data-action="toggle-message">展开</button>${code?`<button class="mini-button" data-action="copy-code" data-code="${esc(code)}">复制验证码</button>`:''}<button class="mini-button" data-action="copy-body">复制全文</button></div></article>`; }).join(''):'<div class="empty">还没有同步短信</div>';
+        return `<div class="page-head"><div><p class="eyebrow">Inbox</p><h1>最近短信</h1><p class="muted" id="sync-status" role="status">自动同步 · 每 3 秒检查一次</p></div><button class="button subtle" data-action="refresh">刷新</button></div><div class="summary"><div class="panel summary-item"><strong>${count}</strong><span>当前列表</span></div><div class="panel summary-item"><strong>${latest?esc(timeOf(latest.received_at)):'—'}</strong><span>最近接收</span></div><div class="panel summary-item"><strong>${state.lastSeq||'—'}</strong><span>同步序号</span></div></div><section class="panel"><div class="message-list">${list}</div></section>`;
+      }
+      function devicesView() { const list=state.devices.length?state.devices.map((device)=>`<article class="device"><div><div class="device-name">${esc(device.name)}<span class="device-type">${esc(labelType(device.type))}</span></div><div class="device-meta">最后在线：${device.last_seen_at?esc(timeOf(device.last_seen_at)):'尚未在线'} · 添加于 ${esc(timeOf(device.created_at))}</div></div><button class="button danger" data-action="remove-device" data-device="${esc(device.id)}">移除</button></article>`).join(''):'<div class="empty">还没有绑定设备</div>'; return `<div class="page-head"><div><p class="eyebrow">Devices</p><h1>设备管理</h1><p class="muted">移除设备后，它的 device token 会立即失效。</p></div></div><section class="panel"><div class="device-list">${list}</div></section>`; }
+      function settingsView() { return `<div class="page-head"><div><p class="eyebrow">Settings</p><h1>设置</h1><p class="muted">当前账号和同步状态</p></div></div><section class="panel settings"><div class="settings-row"><span class="muted">用户名</span><strong>${esc(state.user?.username)}</strong></div><div class="settings-row"><span class="muted">邮箱</span><strong>${esc(state.user?.email||'未设置')}</strong></div><div class="settings-row"><span class="muted">同步方式</span><strong>HTTPS + 增量轮询</strong></div><div class="settings-row"><span class="muted">消息序号</span><strong>${state.lastSeq||'—'}</strong></div></section>`; }
+
+      async function fetchRecentPage() {
+        return api(`/api/v1/messages?limit=${PAGE_SIZE}`);
+      }
+      async function fetchAfterPages(cursor, owner=state.user) {
+        const messages = [];
+        let nextCursor = Number(cursor) || 0;
+        let nextSeq = nextCursor;
+        while (true) {
+          if(state.user!==owner||location.pathname!=='/inbox') throw new Error('同步已取消');
+          const data = await api(`/api/v1/messages?after=${encodeURIComponent(nextCursor)}&limit=${PAGE_SIZE}`);
+          const incoming = Array.isArray(data.messages) ? data.messages : [];
+          messages.push(...incoming);
+          if(messages.length>MAX_LOCAL_MESSAGES) messages.splice(0,messages.length-MAX_LOCAL_MESSAGES);
+          const responseSeq = Number(data.next_seq);
+          if (!incoming.length || !Number.isSafeInteger(responseSeq) || responseSeq <= nextCursor || incoming.length < PAGE_SIZE) {
+            if (Number.isSafeInteger(responseSeq) && responseSeq >= nextSeq) nextSeq = responseSeq;
+            return { messages, nextSeq };
+          }
+          nextCursor = responseSeq;
+          nextSeq = Math.max(nextSeq, responseSeq);
+        }
+      }
+      async function loadMessages(initial) {
+        if (state.busy||!state.user||location.pathname!='/inbox') return;
+        if(navigator.onLine===false) { resumePolling(); return; }
+        stopPolling(); state.busy=true;
+        const owner=state.user;
+        try {
+          const firstPage = Boolean(initial)||state.messages.length===0;
+          const previousCursor = Number(state.lastSeq) || 0;
+          const recoveryCursor = state.resumeCursor > 0 ? state.resumeCursor : previousCursor;
+          let incoming = [];
+          let nextSeq = previousCursor;
+          if (firstPage && recoveryCursor > 0) {
+            // Independent reads share the connection instead of waiting in series.
+            const [resumed,recent] = await Promise.all([fetchAfterPages(recoveryCursor,owner),fetchRecentPage()]);
+            incoming.push(...resumed.messages);
+            nextSeq = Math.max(nextSeq, resumed.nextSeq);
+            // A cursor can point to an already-synced account. Fetch the recent
+            // page as well so reopening the inbox still shows recent history.
+            incoming.push(...(Array.isArray(recent.messages) ? recent.messages : []));
+            nextSeq = Math.max(nextSeq, Number(recent.next_seq) || 0);
+          } else if (firstPage) {
+            const recent = await fetchRecentPage();
+            incoming = Array.isArray(recent.messages) ? recent.messages : [];
+            nextSeq = Math.max(nextSeq, Number(recent.next_seq) || 0);
+          } else {
+            const resumed = await fetchAfterPages(previousCursor,owner);
+            incoming = resumed.messages;
+            nextSeq = Math.max(nextSeq, resumed.nextSeq);
+          }
+          if(state.user!==owner) return; // Logout/account switch must discard in-flight results.
+          const seen = new Set(firstPage ? [] : state.messages.map((message)=>message.seq));
+          const merged = firstPage ? [] : state.messages.slice();
+          for (const message of incoming) {
+            if (!seen.has(message.seq)) { seen.add(message.seq); merged.push(message); }
+          }
+          merged.sort((left,right)=>Number(right.seq)-Number(left.seq));
+          const visible = merged.slice(0, MAX_LOCAL_MESSAGES);
+          const changed = visible.length!==state.messages.length || visible.some((message,index)=>message.seq!==state.messages[index]?.seq);
+          state.messages = visible;
+          state.lastSeq = Math.max(state.lastSeq, nextSeq);
+          state.resumeCursor = 0;
+          try { if(seqKey()) localStorage.setItem(seqKey(),String(state.lastSeq)); } catch(_) { /* Private-mode storage may be unavailable; keep the in-memory cursor. */ }
+          state.retryDelay=3000;
+          if(location.pathname==='/inbox') {
+            if(changed) {
+              const open = new Set(Array.from(app.querySelectorAll('.message.open'),node=>node.dataset.message));
+              shell(inboxView(),'inbox');
+              for(const node of app.querySelectorAll('.message')) if(open.has(node.dataset.message)) {
+                node.classList.add('open'); node.querySelector('[data-action="toggle-message"]').textContent='收起';
+              }
+            }
+            syncStatus('已同步 · 每 3 秒检查一次');
+          }
+        } catch(error) {
+          if(state.user!==owner) return;
+          if(error.status===401){ state.user=null; state.messages=[]; state.devices=[]; stopPolling(); navigate('/login'); }
+          else { state.retryDelay=Math.min(state.retryDelay*2,60000); syncStatus(`连接不稳定，${state.retryDelay/1000} 秒后重试`); if(initial) toast(error.message); }
+        } finally { state.busy=false; startPolling(); }
+      }
+      async function loadDevices() { const owner=state.user; try { const result=await api('/api/v1/devices'); if(state.user===owner) state.devices=result.devices||[]; } catch(error) { if(state.user!==owner) return; if(error.status===401){ state.user=null; state.devices=[]; navigate('/login'); } else toast(error.message); } }
+      async function renderRoute() {
+        stopPolling(); let path=location.pathname.replace(/\/$/,'')||'/inbox'; if(path==='/') path=state.user?'/inbox':'/login';
+        if(!state.user&&!['/login','/register'].includes(path)){ if(location.pathname!='/login') history.replaceState({},'', '/login'); authView('login'); return; }
+        if(!state.user&&path==='/login'){ authView('login'); return; } if(!state.user&&path==='/register'){ authView('register'); return; }
+        if(path==='/devices'){ shell(devicesView(),'devices'); await loadDevices(); if(state.user&&location.pathname==='/devices') shell(devicesView(),'devices'); } else if(path==='/settings') shell(settingsView(),'settings'); else { if(location.pathname!='/inbox') history.replaceState({},'', '/inbox'); shell(inboxView(),'inbox'); await loadMessages(state.messages.length===0); startPolling(); }
+      }
+      async function bootstrap() { try { const result=await api('/api/v1/me'); state.user=result.user; state.lastSeq=Number(localStorage.getItem(seqKey())||0); state.resumeCursor=state.lastSeq; } catch(_) { state.user=null; } await renderRoute(); }
+
+      app.addEventListener('submit',async(event)=>{ event.preventDefault(); const form=event.target; if(!['login-form','register-form'].includes(form.id)) return; const button=form.querySelector('button[type=submit]'); button.disabled=true; try { const values=Object.fromEntries(new FormData(form).entries()); const endpoint=form.id==='login-form'?'/api/v1/auth/login':'/api/v1/auth/register'; const result=await api(endpoint,{method:'POST',body:JSON.stringify(values)}); state.user=result.user; state.messages=[]; state.devices=[]; state.retryDelay=3000; state.lastSeq=Number(localStorage.getItem(seqKey())||0); state.resumeCursor=state.lastSeq; navigate('/inbox'); } catch(error) { authView(form.id==='login-form'?'login':'register',error.message); } });
+      app.addEventListener('click',async(event)=>{ const target=event.target.closest('[data-action]'); if(!target) return; const action=target.dataset.action; if(action==='logout'){ await api('/api/v1/auth/logout',{method:'POST'}).catch(()=>{}); state.user=null; state.messages=[]; state.lastSeq=0; state.resumeCursor=0; stopPolling(); navigate('/login'); return; } if(action==='refresh'){ await loadMessages(true); return; } if(action==='toggle-message'){ const message=target.closest('.message'); message.classList.toggle('open'); target.textContent=message.classList.contains('open')?'收起':'展开'; return; } if(action==='copy-body'||action==='copy-code'){ const message=target.closest('.message'); const item=state.messages.find((entry)=>String(entry.seq)===message?.dataset.message); const value=action==='copy-code'?target.dataset.code:item?.body; if(value){ try { await navigator.clipboard.writeText(value); } catch(_){ const input=document.createElement('textarea'); input.value=value; document.body.appendChild(input); input.select(); document.execCommand('copy'); input.remove(); } toast('已复制'); } } if(action==='remove-device'){ const id=target.dataset.device; if(!id||!confirm('确定移除这个设备吗？')) return; try { await api(`/api/v1/devices/${encodeURIComponent(id)}`,{method:'DELETE'}); await loadDevices(); shell(devicesView(),'devices'); toast('设备已移除'); } catch(error) { toast(error.message); } } });
+      // Keep internal navigation in the already-loaded app. Modified clicks and downloads stay native.
+      app.addEventListener('click',(event)=>{
+        if(event.defaultPrevented||event.button!==0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey) return;
+        const link=event.target.closest('a[href]'); if(!link||link.target||link.hasAttribute('download')) return;
+        const url=new URL(link.href,location.href);
+        if(url.origin===location.origin&&['/','/login','/register','/inbox','/devices','/settings'].includes(url.pathname)&&!url.search&&!url.hash) {
+          event.preventDefault(); navigate(url.pathname);
+        }
+      });
+      document.addEventListener('visibilitychange',resumePolling);
+      window.addEventListener('online',resumePolling);
+      window.addEventListener('offline',resumePolling);
+      window.addEventListener('popstate',renderRoute); bootstrap();
+    })();
+  </script>
+</body>
+</html>
