@@ -14,41 +14,96 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="@dimen/spacing_lg">
+        android:padding="@dimen/spacing_md">
 
-        <!-- Header -->
+        <!-- Header: compact so the status card is visible without scrolling. -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="MsgDock"
             style="@style/Text.Display"
-            android:layout_marginBottom="@dimen/spacing_xs"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="局域网与云端短信同步"
-            style="@style/Text.Body"
-            android:textColor="@color/accent_primary"
-            android:layout_marginBottom="@dimen/spacing_xl"/>
-
-        <Button
-            android:id="@+id/btn_account_inbox"
-            style="@style/Button.Secondary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="本机收件箱 · 短信历史"
             android:layout_marginBottom="@dimen/spacing_md"/>
 
-        <Button
-            android:id="@+id/btn_background_guide"
-            style="@style/Button.Outlined"
+        <!-- 1. Sync status: one sentence first, then what needs attention. -->
+        <LinearLayout
+            android:id="@+id/card_status"
+            style="@style/Card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="后台运行教程 · 电池 / 小锁 / 自启动"
-            android:layout_marginBottom="@dimen/spacing_md"/>
+            android:orientation="vertical">
 
-        <!-- Account Sync Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="@dimen/spacing_sm">
+
+                <View
+                    android:id="@+id/view_status_dot"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:background="@drawable/status_dot"
+                    android:layout_marginEnd="@dimen/spacing_sm"
+                    android:importantForAccessibility="no"/>
+
+                <TextView
+                    android:id="@+id/text_status_title"
+                    style="@style/Text.Title.Large"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:accessibilityLiveRegion="polite"
+                    android:text="正在检查同步状态…"/>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/text_status_detail"
+                style="@style/Text.Body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""/>
+
+            <LinearLayout
+                android:id="@+id/container_issues"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_marginTop="@dimen/spacing_md"/>
+        </LinearLayout>
+
+        <!-- 2. Recent messages: the three newest saved SMS, tap for full text. -->
+        <LinearLayout
+            android:id="@+id/card_recent"
+            style="@style/Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="最近短信"
+                style="@style/Text.Title"
+                android:layout_marginBottom="@dimen/spacing_sm"/>
+
+            <LinearLayout
+                android:id="@+id/container_recent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"/>
+
+            <Button
+                android:id="@+id/btn_account_inbox"
+                style="@style/Button.Outlined"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="查看全部收件箱"
+                android:layout_marginTop="@dimen/spacing_sm"/>
+        </LinearLayout>
+
+        <!-- 3. Account: login form only while logged out. -->
         <LinearLayout
             android:id="@+id/card_account"
             style="@style/Card"
@@ -60,275 +115,121 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="账号同步"
-                style="@style/Text.Title.Large"
-                android:layout_marginBottom="@dimen/spacing_sm"/>
+                style="@style/Text.Title"
+                android:layout_marginBottom="@dimen/spacing_xs"/>
 
             <TextView
-                android:layout_width="wrap_content"
+                android:id="@+id/text_account_status"
+                style="@style/Text.Body"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="登录同一账号，可上传本机短信，也可接收其他手机同步的短信。接收不需要扫码配对或短信权限。"
-                style="@style/Text.Caption"
-                android:layout_marginBottom="@dimen/spacing_md"/>
+                android:text="未登录"
+                android:layout_marginBottom="@dimen/spacing_sm"/>
 
             <CheckBox
                 android:id="@+id/check_account_receive"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="接收账号短信（无需配对）"
-                android:textColor="@color/accent_primary"/>
-
-            <Button
-                android:id="@+id/btn_account_refresh"
-                style="@style/Button.Outlined"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="立即收取账号短信"
-                android:layout_marginBottom="@dimen/spacing_sm"/>
-
-            <EditText
-                android:id="@+id/edit_account_username"
-                style="@style/EditText.Field"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="用户名（登录时也可填邮箱）"
-                android:inputType="text"
-                android:layout_marginBottom="@dimen/spacing_sm"/>
-
-            <EditText
-                android:id="@+id/edit_account_email"
-                style="@style/EditText.Field"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="邮箱（注册时填写）"
-                android:inputType="textEmailAddress"
-                android:layout_marginBottom="@dimen/spacing_sm"/>
-
-            <EditText
-                android:id="@+id/edit_account_password"
-                style="@style/EditText.Field"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="密码"
-                android:inputType="textPassword"
-                android:layout_marginBottom="@dimen/spacing_md"/>
+                android:minHeight="48dp"
+                android:text="本机也接收账号里其他手机的短信"
+                android:textColor="@color/text_primary"/>
 
             <LinearLayout
+                android:id="@+id/group_account_login"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginBottom="@dimen/spacing_sm">
-
-                <Button
-                    android:id="@+id/btn_account_login"
-                    style="@style/Button.Primary"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="登录"
-                    android:layout_marginEnd="@dimen/spacing_sm"/>
-
-                <Button
-                    android:id="@+id/btn_account_register"
-                    style="@style/Button.Secondary"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="注册"/>
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/btn_account_logout"
-                style="@style/Button.Outlined"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="退出账号"
-                android:layout_marginBottom="@dimen/spacing_md"/>
-
-            <TextView
-                android:id="@+id/text_account_status"
-                style="@style/Text.Body"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="账号：未登录"/>
-        </LinearLayout>
-
-        <!-- Cloud Relay Section -->
-        <LinearLayout
-            android:id="@+id/card_cloud_relay"
-            style="@style/Card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="① 云端转发"
-                style="@style/Text.Title.Large"
-                android:layout_marginBottom="@dimen/spacing_sm"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="端到端加密 · P-256 ECDH + AES-256-GCM"
-                style="@style/Text.Caption"
-                android:textColor="@color/accent_success"
-                android:layout_marginBottom="@dimen/spacing_md"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="主 Relay（优先，固定地址）"
-                style="@style/Text.Body"
-                android:layout_marginBottom="@dimen/spacing_xs"/>
-
-            <TextView
-                android:id="@+id/edit_relay_url"
-                style="@style/Text.Body"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textIsSelectable="true"
-                android:layout_marginBottom="@dimen/spacing_md"/>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                style="@style/Text.Body"
-                android:text="备用 Relay（连接失败时使用，固定地址）"/>
-
-            <TextView
-                android:id="@+id/text_backup_relay_url"
-                style="@style/Text.Body"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textIsSelectable="true"
-                android:layout_marginBottom="@dimen/spacing_md"/>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="@dimen/spacing_md">
-
-                <Button
-                    android:id="@+id/btn_cloud_pair_sender"
-                    style="@style/Button.Secondary"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="发送配对"/>
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/btn_cloud_pair_receiver"
-                style="@style/Button.Outlined"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="生成接收配对码"
-                android:layout_marginBottom="@dimen/spacing_md"/>
-
-            <TextView
-                android:id="@+id/text_cloud_status"
-                style="@style/Text.Body"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="云状态：未配置"/>
-        </LinearLayout>
-
-        <!-- Device Management Section -->
-        <LinearLayout
-            android:id="@+id/card_device_management"
-            style="@style/Card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="② 设备管理"
-                style="@style/Text.Title.Large"
-                android:layout_marginBottom="@dimen/spacing_sm"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="机器码用于自动恢复云链路，不是密码"
-                style="@style/Text.Body"
-                android:layout_marginBottom="@dimen/spacing_md"/>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:padding="@dimen/spacing_md"
-                android:background="@drawable/input_field"
-                android:layout_marginBottom="@dimen/spacing_md">
+                android:orientation="vertical">
 
                 <TextView
-                    android:id="@+id/text_machine_code"
-                    style="@style/Text.Title"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="计算中..."
-                    android:textColor="@color/accent_primary"
-                    android:fontFamily="monospace"/>
+                    android:text="登录后，本机收到的短信会上传到账号，可在电脑和网页查看。账号同步的正文保存在服务器，不是端到端加密。"
+                    style="@style/Text.Caption"
+                    android:layout_marginTop="@dimen/spacing_xs"
+                    android:layout_marginBottom="@dimen/spacing_md"/>
 
-                <Button
-                    android:id="@+id/btn_copy_machine_code"
-                    style="@style/Button.Outlined"
-                    android:layout_width="wrap_content"
+                <EditText
+                    android:id="@+id/edit_account_username"
+                    style="@style/EditText.Field"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="复制"
-                    android:minHeight="36dp"
-                    android:paddingStart="@dimen/spacing_md"
-                    android:paddingEnd="@dimen/spacing_md"/>
+                    android:hint="用户名或邮箱"
+                    android:inputType="text"
+                    android:autofillHints="username"
+                    android:layout_marginBottom="@dimen/spacing_sm"/>
+
+                <EditText
+                    android:id="@+id/edit_account_password"
+                    style="@style/EditText.Field"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="密码"
+                    android:inputType="textPassword"
+                    android:autofillHints="password"
+                    android:layout_marginBottom="@dimen/spacing_sm"/>
+
+                <EditText
+                    android:id="@+id/edit_account_email"
+                    style="@style/EditText.Field"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="邮箱（仅注册新账号时填写）"
+                    android:inputType="textEmailAddress"
+                    android:autofillHints="emailAddress"
+                    android:layout_marginBottom="@dimen/spacing_md"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btn_account_login"
+                        style="@style/Button.Primary"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="登录"
+                        android:layout_marginEnd="@dimen/spacing_sm"/>
+
+                    <Button
+                        android:id="@+id/btn_account_register"
+                        style="@style/Button.Secondary"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="注册"/>
+                </LinearLayout>
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/text_backup_status"
-                style="@style/Text.Caption"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="备份状态：检查中"
-                android:layout_marginBottom="@dimen/spacing_md"/>
-
             <LinearLayout
-                android:id="@+id/container_cloud_links"
+                android:id="@+id/group_account_session"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:layout_marginBottom="@dimen/spacing_md"/>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:visibility="gone"
+                android:layout_marginTop="@dimen/spacing_sm">
 
                 <Button
-                    android:id="@+id/btn_sync_recover"
+                    android:id="@+id/btn_account_refresh"
                     style="@style/Button.Secondary"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="同步 / 恢复"
+                    android:text="立即收取"
                     android:layout_marginEnd="@dimen/spacing_sm"/>
 
                 <Button
-                    android:id="@+id/btn_delete_device"
+                    android:id="@+id/btn_account_logout"
                     style="@style/Button.Outlined"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="删除云记录"
-                    android:textColor="@color/accent_error"/>
+                    android:text="退出账号"/>
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Sender Section -->
+        <!-- 4. This phone forwards its own SMS. -->
         <LinearLayout
             android:id="@+id/card_sender"
             style="@style/Card"
@@ -339,8 +240,15 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="③ 手机发送端"
-                style="@style/Text.Title.Large"
+                android:text="本机短信转发"
+                style="@style/Text.Title"
+                android:layout_marginBottom="@dimen/spacing_xs"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="插着 SIM 卡的手机用这里：收到短信后立即发给账号和局域网电脑。"
+                style="@style/Text.Caption"
                 android:layout_marginBottom="@dimen/spacing_md"/>
 
             <LinearLayout
@@ -363,8 +271,7 @@
                     style="@style/Button.Outlined"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="申请"
-                    android:minHeight="36dp"/>
+                    android:text="申请"/>
             </LinearLayout>
 
             <LinearLayout
@@ -388,15 +295,29 @@
                     style="@style/Button.Outlined"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="申请"
-                    android:minHeight="36dp"/>
+                    android:text="申请"/>
             </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="局域网电脑"
+                style="@style/Text.Body.Large"
+                android:textColor="@color/text_primary"
+                android:layout_marginBottom="@dimen/spacing_xs"/>
+
+            <LinearLayout
+                android:id="@+id/container_targets"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="@dimen/spacing_sm"/>
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginBottom="@dimen/spacing_md">
+                android:layout_marginBottom="@dimen/spacing_sm">
 
                 <Button
                     android:id="@+id/btn_scan_lan"
@@ -404,7 +325,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="扫描 LAN"
+                    android:text="扫描局域网"
                     android:layout_marginEnd="@dimen/spacing_sm"/>
 
                 <Button
@@ -418,20 +339,13 @@
 
             <Button
                 android:id="@+id/btn_send_test"
-                style="@style/Button.Primary"
+                style="@style/Button.Outlined"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="发送测试消息"
-                android:layout_marginBottom="@dimen/spacing_md"/>
-
-            <LinearLayout
-                android:id="@+id/container_targets"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"/>
+                android:text="发送测试消息"/>
         </LinearLayout>
 
-        <!-- Receiver Section -->
+        <!-- 5. This device receives SMS from other phones. -->
         <LinearLayout
             android:id="@+id/card_receiver"
             style="@style/Card"
@@ -442,16 +356,24 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="④ Pad 接收端"
-                style="@style/Text.Title.Large"
+                android:text="本机接收短信"
+                style="@style/Text.Title"
+                android:layout_marginBottom="@dimen/spacing_xs"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="平板或备用机用这里：接收其他手机转发来的短信。"
+                style="@style/Text.Caption"
                 android:layout_marginBottom="@dimen/spacing_md"/>
 
             <TextView
                 android:id="@+id/text_receiver_status"
-                style="@style/Text.Body.Large"
-                android:layout_width="wrap_content"
+                style="@style/Text.Body"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="接收服务：未启动"
+                android:textIsSelectable="true"
                 android:layout_marginBottom="@dimen/spacing_md"/>
 
             <LinearLayout
@@ -461,7 +383,7 @@
 
                 <Button
                     android:id="@+id/btn_start_receiver"
-                    style="@style/Button.Primary"
+                    style="@style/Button.Secondary"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -478,77 +400,266 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- System Settings Section -->
-        <LinearLayout
-            android:id="@+id/card_system"
-            style="@style/Card"
+        <Button
+            android:id="@+id/btn_background_guide"
+            style="@style/Button.Outlined"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:text="后台运行教程 · 电池 / 小锁 / 自启动"
+            android:layout_marginBottom="@dimen/spacing_md"/>
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="⑤ 系统设置"
-                style="@style/Text.Title.Large"
-                android:layout_marginBottom="@dimen/spacing_md"/>
+        <!-- 6. Everything a normal user rarely touches, collapsed by default. -->
+        <Button
+            android:id="@+id/btn_toggle_advanced"
+            style="@style/Button.Outlined"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="展开高级设置"
+            android:layout_marginBottom="@dimen/spacing_md"/>
 
-            <Button
-                android:id="@+id/btn_battery_optimize"
-                style="@style/Button.Outlined"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="关闭电池优化限制"
-                android:layout_marginBottom="@dimen/spacing_sm"/>
+        <LinearLayout
+            android:id="@+id/container_advanced"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
 
-            <Button
-                android:id="@+id/btn_app_settings"
-                style="@style/Button.Outlined"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="打开应用设置"
-                android:layout_marginBottom="@dimen/spacing_sm"/>
-
+            <!-- Legacy paired cloud (end-to-end encrypted) -->
             <LinearLayout
+                android:id="@+id/card_cloud_relay"
+                style="@style/Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginBottom="@dimen/spacing_md">
+                android:orientation="vertical">
 
-                <Button
-                    android:id="@+id/btn_open_shizuku"
-                    style="@style/Button.Outlined"
-                    android:layout_width="0dp"
+                <TextView
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="打开 Shizuku"
-                    android:layout_marginEnd="@dimen/spacing_sm"/>
+                    android:text="配对云端（旧版）"
+                    style="@style/Text.Title"
+                    android:layout_marginBottom="@dimen/spacing_xs"/>
 
-                <Button
-                    android:id="@+id/btn_copy_adb"
-                    style="@style/Button.Outlined"
-                    android:layout_width="0dp"
+                <TextView
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="复制 ADB 命令"/>
+                    android:text="用 6 位码一对一配对，端到端加密，服务器只存密文。已有账号同步时一般不需要。"
+                    style="@style/Text.Caption"
+                    android:layout_marginBottom="@dimen/spacing_md"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="@dimen/spacing_md">
+
+                    <Button
+                        android:id="@+id/btn_cloud_pair_sender"
+                        style="@style/Button.Secondary"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="输入配对码"
+                        android:layout_marginEnd="@dimen/spacing_sm"/>
+
+                    <Button
+                        android:id="@+id/btn_cloud_pair_receiver"
+                        style="@style/Button.Outlined"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="生成接收配对码"/>
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/text_cloud_status"
+                    style="@style/Text.Caption"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textIsSelectable="true"
+                    android:text="云状态：未配置"
+                    android:layout_marginBottom="@dimen/spacing_sm"/>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    style="@style/Text.Caption"
+                    android:text="主 / 备用 Relay（固定地址）"/>
+
+                <TextView
+                    android:id="@+id/edit_relay_url"
+                    style="@style/Text.Caption"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textIsSelectable="true"/>
+
+                <TextView
+                    android:id="@+id/text_backup_relay_url"
+                    style="@style/Text.Caption"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textIsSelectable="true"/>
             </LinearLayout>
 
+            <!-- Device backup / machine code -->
+            <LinearLayout
+                android:id="@+id/card_device_management"
+                style="@style/Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="配对链路恢复"
+                    style="@style/Text.Title"
+                    android:layout_marginBottom="@dimen/spacing_xs"/>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="机器码用于重装后自动恢复配对云端链路，不是密码。"
+                    style="@style/Text.Caption"
+                    android:layout_marginBottom="@dimen/spacing_md"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:padding="@dimen/spacing_md"
+                    android:background="@drawable/input_field"
+                    android:layout_marginBottom="@dimen/spacing_md">
+
+                    <TextView
+                        android:id="@+id/text_machine_code"
+                        style="@style/Text.Title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="计算中..."
+                        android:textColor="@color/accent_primary"
+                        android:fontFamily="monospace"/>
+
+                    <Button
+                        android:id="@+id/btn_copy_machine_code"
+                        style="@style/Button.Outlined"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="复制"/>
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/text_backup_status"
+                    style="@style/Text.Caption"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="备份状态：检查中"
+                    android:layout_marginBottom="@dimen/spacing_md"/>
+
+                <LinearLayout
+                    android:id="@+id/container_cloud_links"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginBottom="@dimen/spacing_md"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btn_sync_recover"
+                        style="@style/Button.Secondary"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="同步 / 恢复"
+                        android:layout_marginEnd="@dimen/spacing_sm"/>
+
+                    <Button
+                        android:id="@+id/btn_delete_device"
+                        style="@style/Button.Outlined"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="删除云记录"
+                        android:textColor="@color/accent_error"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- System shortcuts -->
+            <LinearLayout
+                android:id="@+id/card_system"
+                style="@style/Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="系统设置"
+                    style="@style/Text.Title"
+                    android:layout_marginBottom="@dimen/spacing_md"/>
+
+                <Button
+                    android:id="@+id/btn_battery_optimize"
+                    style="@style/Button.Outlined"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="关闭电池优化限制"
+                    android:layout_marginBottom="@dimen/spacing_sm"/>
+
+                <Button
+                    android:id="@+id/btn_app_settings"
+                    style="@style/Button.Outlined"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="打开应用设置"
+                    android:layout_marginBottom="@dimen/spacing_sm"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="@dimen/spacing_md">
+
+                    <Button
+                        android:id="@+id/btn_open_shizuku"
+                        style="@style/Button.Outlined"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="打开 Shizuku"
+                        android:layout_marginEnd="@dimen/spacing_sm"/>
+
+                    <Button
+                        android:id="@+id/btn_copy_adb"
+                        style="@style/Button.Outlined"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="复制 ADB 命令"/>
+                </LinearLayout>
+
+                <TextView
+                    style="@style/Text.Caption"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="小米 / HyperOS 建议开启：自启动、后台无限制\n若验证码不触发，关闭“免费网络短信”"/>
+            </LinearLayout>
+
+            <!-- Accurate privacy summary: the account path is NOT end-to-end encrypted. -->
             <TextView
                 style="@style/Text.Caption"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="小米 / HyperOS 建议开启：自启动、后台无限制\n若验证码不触发，关闭'免费网络短信'"/>
+                android:text="安全说明：局域网使用 TCP 58123 和配对码；配对云端为端到端加密，服务器无法读取正文；账号同步经 HTTPS 上传，正文保存在服务器以便网页查看。"
+                android:textColor="@color/text_tertiary"
+                android:layout_marginBottom="@dimen/spacing_xl"/>
         </LinearLayout>
-
-        <!-- Security Notice -->
-        <TextView
-            style="@style/Text.Caption"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="安全说明：LAN 使用 TCP 58123 + X-Xgy-Key；云端端到端加密，Relay 无法读取明文"
-            android:textColor="@color/text_tertiary"
-            android:layout_marginTop="@dimen/spacing_md"
-            android:layout_marginBottom="@dimen/spacing_xl"/>
     </LinearLayout>
 </ScrollView>
 </FrameLayout>

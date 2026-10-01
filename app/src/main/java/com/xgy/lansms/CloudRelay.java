@@ -215,6 +215,7 @@ public final class CloudRelay {
                     if (result.status >= 200 && result.status < 300) {
                         CloudOutboxStore.remove(app, entry.key);
                         CloudOutboxStore.markSuccess(app);
+                        SyncClock.markSuccess(app);
                     } else {
                         String message = "云端发送 HTTP " + result.status + ": " + result.body;
                         if (result.status == 401 || result.status == 403 || result.status == 410
@@ -312,7 +313,10 @@ public final class CloudRelay {
             HttpResult acknowledged = requestJson("POST", normalizeRelayUrl(link.relayUrl) + "/v1/ack", body, link.token);
             if (acknowledged.status < 200 || acknowledged.status >= 300) throw new IllegalStateException("云端 ACK HTTP " + acknowledged.status);
         }
-        if (!ack.isEmpty()) TargetStore.prefs(app).edit().putLong("cloud_receive_last_success", System.currentTimeMillis()).remove("cloud_receive_last_error").apply();
+        if (!ack.isEmpty()) {
+            TargetStore.prefs(app).edit().putLong("cloud_receive_last_success", System.currentTimeMillis()).remove("cloud_receive_last_error").apply();
+            SyncClock.markSuccess(app);
+        }
         return newMessages;
     }
 

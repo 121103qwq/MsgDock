@@ -34,20 +34,34 @@ public class MainActivity extends Activity {
     private final Runnable accountUiRefresh = new Runnable() {
         @Override public void run() {
             if (!activityAlive()) return;
-            accountStatusText.setText(AccountApi.statusText(MainActivity.this));
+            accountStatusText.setText(accountSummary());
             receiverStatusText.setText(receiverStatus());
+            renderAccountMode();
+            renderStatus();
+            renderRecentIfChanged();
             accountUiHandler.postDelayed(this, 3000L);
         }
     };
     private LinearLayout cloudLinksContainer, targetsContainer;
     private Button cloudPairSenderBtn, cloudPairReceiverBtn;
     private View nearbyPermissionRow;
+    // Status-first home screen
+    private View statusDot, loginGroup, sessionGroup, advancedContainer;
+    private TextView statusTitle, statusDetail;
+    private LinearLayout issuesContainer, recentContainer;
+    private Button advancedToggle;
+    private boolean advancedExpanded;
+    private String recentStamp = "";
+    private String statusKey = "";
 
     private final List<TargetStore.Target> discovered = Collections.synchronizedList(new ArrayList<>());
 
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
-        if (b != null) pendingPermission = b.getInt("pending_permission", 0);
+        if (b != null) {
+            pendingPermission = b.getInt("pending_permission", 0);
+            advancedExpanded = b.getBoolean("advanced_expanded", false);
+        }
         setContentView(R.layout.activity_main);
         WindowLayout.apply(this);
         
@@ -83,6 +97,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putInt("pending_permission", pendingPermission);
+        state.putBoolean("advanced_expanded", advancedExpanded);
         super.onSaveInstanceState(state);
     }
 
@@ -157,11 +172,24 @@ public class MainActivity extends Activity {
         cloudPairSenderBtn = findViewById(R.id.btn_cloud_pair_sender);
         cloudPairReceiverBtn = findViewById(R.id.btn_cloud_pair_receiver);
         nearbyPermissionRow = findViewById(R.id.row_nearby_permission);
+        statusDot = findViewById(R.id.view_status_dot);
+        statusTitle = findViewById(R.id.text_status_title);
+        statusDetail = findViewById(R.id.text_status_detail);
+        issuesContainer = findViewById(R.id.container_issues);
+        recentContainer = findViewById(R.id.container_recent);
+        loginGroup = findViewById(R.id.group_account_login);
+        sessionGroup = findViewById(R.id.group_account_session);
+        advancedContainer = findViewById(R.id.container_advanced);
+        advancedToggle = findViewById(R.id.btn_toggle_advanced);
     }
 
     private void setupListeners() {
         findViewById(R.id.btn_background_guide).setOnClickListener(v ->
             startActivity(new Intent(this, BackgroundGuideActivity.class)));
+        advancedToggle.setOnClickListener(v -> {
+            advancedExpanded = !advancedExpanded;
+            renderAdvanced();
+        });
         cloudPairSenderBtn.setOnClickListener(v -> cloudPairSender());
         cloudPairReceiverBtn.setOnClickListener(v -> cloudPairReceiver());
         
@@ -239,7 +267,205 @@ public class MainActivity extends Activity {
         
         // Receiver
         receiverStatusText.setText(receiverStatus());
-        accountStatusText.setText(AccountApi.statusText(this));
+        accountStatusText.setText(accountSummary());
+        renderAccountMode();
+        renderAdvanced();
+        renderStatus();
+        renderRecentIfChanged();
+    }
+
+    private void renderAdvanced() {
+        advancedContainer.setVisibility(advancedExpanded ? View.VISIBLE : View.GONE);
+        advancedToggle.setText(advancedExpanded ? "收起高级设置" : "展开高级设置（配对云端、链路恢复、系统权限）");
+    }
+
+    /** Login form only while logged out; refresh/logout only while logged in. */
+    private void renderAccountMode() {
+        boolean loggedIn = AccountStore.hasAccount(this);
+        boolean relogin = loggedIn && AccountStore.authRequired(this);
+        loginGroup.setVisibility(!loggedIn || relogin ? View.VISIBLE : View.GONE);
+        sessionGroup.setVisibility(loggedIn ? View.VISIBLE : View.GONE);
+        findViewById(R.id.btn_account_refresh).setVisibility(relogin ? View.GONE : View.VISIBLE);
+        if (relogin && accountUsernameEdit.getText().length() == 0) {
+            String name = AccountStore.username(this);
+            accountUsernameEdit.setText(name.isEmpty() ? AccountStore.email(this) : name);
+        }
+        accountEmailEditVisibility(!loggedIn);
+    }
+
+    private void accountEmailEditVisibility(boolean visible) {
+        accountEmailEdit.setVisibility(visible ? View.VISIBLE : View.GONE);
+        findViewById(R.id.btn_account_register).setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
+
+    /** Human summary for the account card; diagnostics stay in the status card and advanced section. */
+    private String accountSummary() {
+        if (!AccountStore.hasAccount(this)) return "未登录";
+        String name = AccountStore.username(this);
+        if (name.isEmpty()) name = AccountStore.email(this);
+        if (name.isEmpty()) name = "已登录账号";
+        StringBuilder out = new StringBuilder("已登录：").append(name);
+        if (AccountStore.authRequired(this)) {
+            return out.append("\n授权已失效，请重新输入密码登录。待上传的短信会保留。").toString();
+        }
+        int pending = AccountOutboxStore.count(this);
+        out.append("\n上传：").append(!AccountStore.hasDeviceToken(this) ? "正在注册本机"
+            : pending > 0 ? pending + " 条等待上传" : pending < 0 ? "队列读取失败" : "已全部上传");
+        out.append("\n接收：").append(AccountStore.receiveEnabled(this)
+            ? AccountStore.prefs(this).getString("receive_status", "等待接收服务") : "未开启");
+        return out.toString();
+    }
+
+    private SyncHealth.Input healthInput() {
+        SyncHealth.Input in = new SyncHealth.Input();
+        in.canReceiveSms = getPackageManager().hasSystemFeature(PackageManager.FEATURE_TELEPHONY);
+        in.smsPermission = checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED;
+        NotificationManager notifications = getSystemService(NotificationManager.class);
+        in.notificationsEnabled = notifications == null || notifications.areNotificationsEnabled();
+        PowerManager power = getSystemService(PowerManager.class);
+        in.batteryExempt = power == null || power.isIgnoringBatteryOptimizations(getPackageName());
+        in.loggedIn = AccountStore.hasAccount(this);
+        in.authRequired = in.loggedIn && AccountStore.authRequired(this);
+        in.accountReceive = AccountStore.receiveEnabled(this);
+        in.receiverEnabled = TargetStore.prefs(this).getBoolean(ReceiverService.PREF_RECEIVER_ENABLED, false);
+        in.receiverStatus = ReceiverService.statusText();
+        in.lanTargets = TargetStore.load(this).size();
+        in.cloudSenderLinks = CloudConfigStore.senderLinks(this).size();
+        in.cloudReceiverLinks = CloudConfigStore.receiverLinks(this).size();
+        in.accountPending = in.loggedIn ? AccountOutboxStore.count(this) : 0;
+        in.legacyPending = CloudOutboxStore.count(this);
+        in.deadLetters = Math.max(0, CloudOutboxStore.deadLetterCount(this));
+        in.online = CloudRelay.hasNetwork(this);
+        in.lanProblem = SyncClock.lanProblem(this);
+        in.lastSuccessAt = SyncClock.lastSuccess(this);
+        in.now = System.currentTimeMillis();
+        return in;
+    }
+
+    private void renderStatus() {
+        SyncHealth.Result health = SyncHealth.evaluate(healthInput());
+        StringBuilder key = new StringBuilder(health.level.name()).append(health.title).append(health.detail);
+        for (SyncHealth.Issue issue : health.issues) key.append('|').append(issue.text);
+        // Rebuilding rows every 3 s would steal focus/ripples from the buttons; skip when unchanged.
+        if (key.toString().equals(statusKey)) return;
+        statusKey = key.toString();
+        statusTitle.setText(health.title);
+        statusDetail.setText(health.detail);
+        statusDot.setBackgroundTintList(android.content.res.ColorStateList.valueOf(getColor(levelColor(health.level))));
+        issuesContainer.removeAllViews();
+        LayoutInflater inflater = LayoutInflater.from(this);
+        for (SyncHealth.Issue issue : health.issues) {
+            View row = inflater.inflate(R.layout.item_issue, issuesContainer, false);
+            TextView text = row.findViewById(R.id.text_issue);
+            text.setText(issue.text);
+            text.setTextColor(getColor(issue.level == SyncHealth.Level.ERROR ? R.color.accent_error
+                : issue.level == SyncHealth.Level.WARN ? R.color.accent_warning : R.color.text_primary));
+            Button action = row.findViewById(R.id.btn_issue_action);
+            if (issue.action == SyncHealth.Action.NONE) action.setVisibility(View.GONE);
+            else {
+                action.setText(issue.actionLabel);
+                action.setOnClickListener(v -> runIssueAction(issue.action));
+            }
+            issuesContainer.addView(row);
+        }
+        issuesContainer.setVisibility(health.issues.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    private static int levelColor(SyncHealth.Level level) {
+        switch (level) {
+            case OK: return R.color.accent_success;
+            case BUSY: return R.color.accent_primary;
+            case WARN: return R.color.accent_warning;
+            case ERROR: return R.color.accent_error;
+            default: return R.color.text_tertiary;
+        }
+    }
+
+    private void runIssueAction(SyncHealth.Action action) {
+        switch (action) {
+            case RELOGIN:
+                scrollTo(R.id.card_account);
+                accountPasswordEdit.requestFocus();
+                break;
+            case GRANT_SMS:
+                askPermission(Manifest.permission.RECEIVE_SMS, REQUEST_SMS);
+                break;
+            case ENABLE_NOTIFICATIONS:
+                if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED && shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+                    askPermission(Manifest.permission.POST_NOTIFICATIONS, REQUEST_NOTIFICATIONS);
+                } else {
+                    try {
+                        startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName()));
+                    } catch (ActivityNotFoundException e) { openAppSettings(); }
+                }
+                break;
+            case BACKGROUND_GUIDE:
+                startActivity(new Intent(this, BackgroundGuideActivity.class));
+                break;
+            case SHOW_RECEIVER:
+                scrollTo(R.id.card_receiver);
+                break;
+            case ADD_ROUTE:
+                scrollTo(R.id.card_account);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void scrollTo(int viewId) {
+        View target = findViewById(viewId);
+        ScrollView scroll = findViewById(R.id.main_scroll);
+        if (target != null && scroll != null) scroll.post(() -> scroll.smoothScrollTo(0, target.getTop()));
+    }
+
+    /** Re-reads the inbox only when the history file actually changed (size or mtime). */
+    private void renderRecentIfChanged() {
+        java.io.File file = new java.io.File(getFilesDir(), "cloud-inbox.jsonl");
+        String user = AccountStore.userId(this);
+        String stamp = user + "|" + file.length() + "|" + file.lastModified();
+        if (stamp.equals(recentStamp)) return;
+        recentStamp = stamp;
+        CloudRelay.executor().execute(() -> {
+            List<org.json.JSONObject> rows;
+            try { rows = CloudInboxStore.localHistory(getFilesDir(), user, 3); }
+            catch (Exception e) { rows = Collections.emptyList(); }
+            final List<org.json.JSONObject> recent = rows;
+            runOnUiThread(() -> {
+                if (activityAlive() && user.equals(AccountStore.userId(this))) renderRecent(recent, user);
+            });
+        });
+    }
+
+    private void renderRecent(List<org.json.JSONObject> rows, String user) {
+        recentContainer.removeAllViews();
+        if (rows.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("还没有收到短信。转发或接收的短信会显示在这里，最新的在最上面。");
+            empty.setTextAppearance(R.style.Text_Body);
+            recentContainer.addView(empty);
+            return;
+        }
+        LayoutInflater inflater = LayoutInflater.from(this);
+        for (org.json.JSONObject row : rows) {
+            View item = inflater.inflate(R.layout.item_recent_sms, recentContainer, false);
+            String body = row.optString("text", "");
+            ((TextView) item.findViewById(R.id.text_recent_from)).setText(row.optString("from", "短信"));
+            ((TextView) item.findViewById(R.id.text_recent_body)).setText(body.replace('\n', ' '));
+            ((TextView) item.findViewById(R.id.text_recent_meta)).setText(inboxMetadata(row));
+            String code = OtpCode.find(body);
+            Button copy = item.findViewById(R.id.btn_recent_copy_code);
+            if (!code.isEmpty()) {
+                copy.setVisibility(View.VISIBLE);
+                copy.setText("复制 " + code);
+                copy.setContentDescription("复制验证码 " + code);
+                copy.setOnClickListener(v -> copyInboxText(code, user));
+            }
+            item.setOnClickListener(v -> showInboxDetail(row, user));
+            recentContainer.addView(item);
+        }
     }
 
     private void renderCloudLinks() {
@@ -453,22 +679,32 @@ public class MainActivity extends Activity {
                                 + (body.length() > 60 ? body.substring(0, 60) + "…" : body);
                     }
                     new AlertDialog.Builder(this).setTitle("本机收件箱（最近 " + rows.size() + " 条）")
-                        .setItems(labels, (dialog, which) -> {
-                            if (!user.equals(AccountStore.userId(this))) return;
-                            org.json.JSONObject row = rows.get(which);
-                            String body = row.optString("text");
-                            AlertDialog.Builder detail = new AlertDialog.Builder(this).setTitle(row.optString("from"))
-                                .setMessage(inboxMetadata(row) + "\n\n" + body)
-                                .setPositiveButton("复制全文", (d, w) -> copyInboxText(body, user)).setNegativeButton("关闭", null);
-                            java.util.regex.Matcher code = java.util.regex.Pattern.compile("(?<!\\d)(\\d{4,8})(?!\\d)").matcher(body);
-                            if (code.find()) { String value = code.group(1); detail.setNeutralButton("复制验证码", (d, w) -> copyInboxText(value, user)); }
-                            detail.show();
-                        }).setNegativeButton("关闭", null).show();
+                        .setItems(labels, (dialog, which) -> showInboxDetail(rows.get(which), user))
+                        .setNegativeButton("关闭", null).show();
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> { if (activityAlive()) Toast.makeText(this, "读取收件箱失败，请重试", Toast.LENGTH_LONG).show(); });
             }
         });
+    }
+
+    private void showInboxDetail(org.json.JSONObject row, String user) {
+        if (!activityAlive() || !user.equals(AccountStore.userId(this))) return;
+        String body = row.optString("text");
+        AlertDialog.Builder detail = new AlertDialog.Builder(this).setTitle(row.optString("from"))
+            .setMessage(inboxMetadata(row) + "\n\n" + body)
+            .setPositiveButton("复制全文", (d, w) -> copyInboxText(body, user)).setNegativeButton("关闭", null);
+        // Prefer an explicit OTP; fall back to the legacy digit rule so manual copy still works.
+        String value = OtpCode.find(body);
+        if (value.isEmpty()) {
+            java.util.regex.Matcher code = java.util.regex.Pattern.compile("(?<!\\d)(\\d{4,8})(?!\\d)").matcher(body);
+            if (code.find()) value = code.group(1);
+        }
+        if (!value.isEmpty()) {
+            String copied = value;
+            detail.setNeutralButton("复制验证码 " + copied, (d, w) -> copyInboxText(copied, user));
+        }
+        detail.show();
     }
 
     private String inboxMetadata(org.json.JSONObject row) {
@@ -481,7 +717,16 @@ public class MainActivity extends Activity {
     private void copyInboxText(String text, String user) {
         if (!activityAlive() || !user.equals(AccountStore.userId(this))) return;
         ClipboardManager clipboard = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-        if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText("MsgDock", text));
+        if (clipboard != null) {
+            ClipData clip = ClipData.newPlainText("MsgDock", text);
+            if (Build.VERSION.SDK_INT >= 33) {
+                // SMS bodies and codes are sensitive: keep them out of the system copy preview.
+                PersistableBundle extras = new PersistableBundle();
+                extras.putBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE, true);
+                clip.getDescription().setExtras(extras);
+            }
+            clipboard.setPrimaryClip(clip);
+        }
         Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show();
     }
 

@@ -140,7 +140,9 @@ public final class Forwarder {
             if (status < 200 || status >= 300) {
                 android.util.Log.w("XgyLanSms", "Receiver returned HTTP " + status + " for " + t.label());
             }
+            SyncClock.markLan(c, status >= 200 && status < 300, t.name);
         } catch (Exception e) {
+            SyncClock.markLan(c, false, t.name);
             android.util.Log.w("XgyLanSms", "Forward failed: " + t.label(), e);
         } finally {
             if (conn != null) conn.disconnect();

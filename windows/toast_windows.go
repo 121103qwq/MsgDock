@@ -191,6 +191,7 @@ func (a *App) showSMSNotification(sms SMS) error {
 		nativeErr = errors.New("native Windows notification is not initialized")
 		log.Printf("native Windows notification is not initialized")
 	}
+	a.notifyFailed.Store(nativeErr != nil)
 	if nativeErr != nil {
 		logNotificationError(nativeErr)
 	}
@@ -238,17 +239,17 @@ func (p *smsNotificationPresenter) deliver(sms SMS) error {
 		return nil
 	}
 	suppress := !p.lastPopup.IsZero() && now.Sub(p.lastPopup) < notificationPopupInterval
-	if err := p.push(buildSMSNotificationXML(sms), suppress); err != nil {
+	code := automaticVerificationCode(sms.Text)
+	willCopy := code != "" && sms.ID != "" && sms.ID != p.lastCopiedID && p.copyCode != nil
+	if err := p.push(buildSMSNotificationXMLWithCopy(sms, willCopy), suppress); err != nil {
 		return err
 	}
 	if !suppress {
 		p.lastPopup = now
 	}
 	p.latestReceived = sms.ReceivedAt
-	if code := automaticVerificationCode(sms.Text); code != "" && sms.ID != "" && sms.ID != p.lastCopiedID {
-		if p.copyCode != nil {
-			p.copyCode(sms, code)
-		}
+	if willCopy {
+		p.copyCode(sms, code)
 		p.lastCopiedID = sms.ID
 	}
 	return nil
@@ -269,7 +270,29 @@ func automaticVerificationCode(text string) string {
 }
 
 func buildSMSNotificationXML(sms SMS) string {
+	return buildSMSNotificationXMLWithCopy(sms, false)
+}
+
+// buildSMSNotificationXMLWithCopy puts an explicit OTP into the title so it can
+// be read at a glance, and says so when the code is also being auto-copied.
+// The source device goes into the small attribution line otherwise.
+func buildSMSNotificationXMLWithCopy(sms SMS, autoCopied bool) string {
 	code := extractVerificationCode(sms.Text)
+	title := sms.From
+	if otp := automaticVerificationCode(sms.Text); otp != "" {
+		title = sms.From + " · 验证码 " + otp
+	}
+	attribution := ""
+	switch {
+	case autoCopied:
+		attribution = "验证码已复制到剪贴板"
+	case strings.TrimSpace(sms.Device) != "":
+		attribution = "来自 " + strings.TrimSpace(sms.Device)
+	}
+	attributionXML := ""
+	if attribution != "" {
+		attributionXML = `<text placement="attribution">` + xmlEscape(attribution) + `</text>`
+	}
 	actions := ""
 	if code != "" {
 		actions += fmt.Sprintf(`<action activationType="foreground" content="复制验证码" arguments="copy-code:%s"/>`, encodeToastValue(code))
@@ -277,9 +300,10 @@ func buildSMSNotificationXML(sms SMS) string {
 	actions += fmt.Sprintf(`<action activationType="foreground" content="复制全文" arguments="copy-full:%s"/>`, encodeToastValue(sms.Text))
 
 	return fmt.Sprintf(
-		`<toast activationType="foreground" launch="show-status" duration="short"><visual><binding template="ToastGeneric"><text>%s</text><text>%s</text></binding></visual><actions>%s</actions><audio silent="true"/></toast>`,
-		xmlEscape(sms.From),
+		`<toast activationType="foreground" launch="show-status" duration="short"><visual><binding template="ToastGeneric"><text>%s</text><text>%s</text>%s</binding></visual><actions>%s</actions><audio silent="true"/></toast>`,
+		xmlEscape(title),
 		xmlEscape(sms.Text),
+		attributionXML,
 		actions,
 	)
 }

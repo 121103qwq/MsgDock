@@ -93,6 +93,7 @@ type App struct {
 	pending          []pendingNotification
 	pendingLoaded    bool
 	closing          atomic.Bool
+	notifyFailed     atomic.Bool // latest native Toast attempt failed; shown in the status header
 	logFile          *os.File
 	recent           []SMS
 	seenIDs          map[string]struct{}

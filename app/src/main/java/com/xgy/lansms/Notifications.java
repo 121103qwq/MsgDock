@@ -5,8 +5,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.os.Build;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class Notifications {
     public static final String SERVICE_CH = "receiver_service";
@@ -53,17 +51,27 @@ public final class Notifications {
             NotificationChannel channel = nm.getNotificationChannel(SMS_CH);
             if (channel == null || channel.getImportance() == NotificationManager.IMPORTANCE_NONE) return false;
         }
+        String sender = from == null || from.isEmpty() ? "短信" : from;
+        // An explicit OTP goes into the title so it is readable without expanding the card.
+        String code = OtpCode.find(text);
+        // Lock screen with "hide sensitive content": show that an SMS arrived, never its body.
+        Notification lockScreen = new Notification.Builder(c, SMS_CH)
+                .setSmallIcon(android.R.drawable.sym_action_email)
+                .setContentTitle("MsgDock")
+                .setContentText("收到 1 条短信")
+                .build();
         Notification.Builder b = new Notification.Builder(c, SMS_CH)
                 .setSmallIcon(android.R.drawable.sym_action_email)
-                .setContentTitle(from == null || from.isEmpty() ? "短信" : from)
+                .setContentTitle(code.isEmpty() ? sender : sender + " · 验证码 " + code)
                 .setContentText(text)
                 .setStyle(new Notification.BigTextStyle().bigText(text))
                 .setSubText(device)
+                .setCategory(Notification.CATEGORY_MESSAGE)
+                .setVisibility(Notification.VISIBILITY_PRIVATE)
+                .setPublicVersion(lockScreen)
                 .setContentIntent(android.app.PendingIntent.getActivity(c, 0,
                     new android.content.Intent(c, MainActivity.class), android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT))
                 .setAutoCancel(true);
-        Matcher m = Pattern.compile("(?<!\\d)(\\d{4,8})(?!\\d)").matcher(text == null ? "" : text);
-        if (m.find()) b.setContentInfo("验证码 " + m.group(1));
         try {
             nm.notify((int)(System.currentTimeMillis() & 0x7fffffff), b.build());
             return true;

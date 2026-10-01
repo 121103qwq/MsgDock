@@ -172,6 +172,7 @@ public final class AccountApi {
                     if (!uploadUser.equals(AccountStore.userId(app)) || !uploadToken.equals(AccountStore.deviceToken(app))) return false;
                     if (result.status >= 200 && result.status < 300) {
                         AccountOutboxStore.remove(app, entry.clientMessageId);
+                        SyncClock.markSuccess(app);
                     } else {
                         if (result.status == 401 || result.status == 403) AccountStore.requireLogin(app);
                         AccountOutboxStore.markFailure(app, entry.clientMessageId, httpError(result));
@@ -274,6 +275,7 @@ public final class AccountApi {
                 }
                 AccountStore.setReceiveStatus(app, "已连接 · 收件进度 " + AccountStore.lastSeq(app));
             }
+            SyncClock.markSuccess(app);
             return true;
         } catch (Exception e) {
             synchronized (AccountStore.LOCK) {

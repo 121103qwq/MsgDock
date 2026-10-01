@@ -22,37 +22,44 @@ const singleInstanceName = `Local\XgyLanSmsReceiver`
 const historyDisplayCharacterLimit = 250000
 
 type desktopUI struct {
-	stateMu           sync.RWMutex
-	app               *App
-	window            *walk.MainWindow
-	notifyIcon        *walk.NotifyIcon
-	trayIcon          *walk.Icon
-	codeLabel         *walk.Label
-	addressLabel      *walk.Label
-	cloudCodeLabel    *walk.Label
-	cloudStatusLabel  *walk.Label
-	relayEdit         *walk.LineEdit
-	pairButton        *walk.PushButton
-	accountIdentifier *walk.LineEdit
-	accountUsername   *walk.LineEdit
-	accountEmail      *walk.LineEdit
-	accountPassword   *walk.LineEdit
-	accountStatus     *walk.Label
-	accountDevices    *walk.TextEdit
-	accountLogin      *walk.PushButton
-	accountRegister   *walk.PushButton
-	accountLogout     *walk.PushButton
-	accountRefresh    *walk.PushButton
-	accountRemove     *walk.PushButton
-	autoStartCheck    *walk.CheckBox
-	trayFallbackCheck *walk.CheckBox
-	recentText        *walk.TextEdit
-	updatingSettings  bool
-	pairingInFlight   bool
-	accountBusy       bool
-	exiting           bool
-	lastTrayFallback  time.Time
-	lastTrayMessageID string
+	stateMu             sync.RWMutex
+	app                 *App
+	window              *walk.MainWindow
+	notifyIcon          *walk.NotifyIcon
+	trayIcon            *walk.Icon
+	codeLabel           *walk.Label
+	addressLabel        *walk.Label
+	cloudCodeLabel      *walk.Label
+	cloudStatusLabel    *walk.Label
+	relayEdit           *walk.LineEdit
+	pairButton          *walk.PushButton
+	accountIdentifier   *walk.LineEdit
+	accountUsername     *walk.LineEdit
+	accountEmail        *walk.LineEdit
+	accountPassword     *walk.LineEdit
+	accountStatus       *walk.Label
+	accountDevices      *walk.TextEdit
+	accountLogin        *walk.PushButton
+	accountRegister     *walk.PushButton
+	accountLogout       *walk.PushButton
+	accountRefresh      *walk.PushButton
+	accountRemove       *walk.PushButton
+	autoStartCheck      *walk.CheckBox
+	trayFallbackCheck   *walk.CheckBox
+	recentText          *walk.TextEdit
+	statusTitle         *walk.Label
+	statusDetail        *walk.Label
+	accountLoginPanel   *walk.Composite
+	accountSessionPanel *walk.Composite
+	lastToolTip         string
+	lastRecentKey       string
+	lastStatusLevel     desktopLevel
+	updatingSettings    bool
+	pairingInFlight     bool
+	accountBusy         bool
+	exiting             bool
+	lastTrayFallback    time.Time
+	lastTrayMessageID   string
 }
 
 func newDesktopUI(app *App) (*desktopUI, error) {
@@ -72,195 +79,222 @@ func newDesktopUI(app *App) (*desktopUI, error) {
 		Size:    Size{Width: 680, Height: 680},
 		Layout:  VBox{Margins: Margins{Left: 18, Top: 18, Right: 18, Bottom: 18}, Spacing: 12},
 		Children: []Widget{
-			Label{
-				Text: "Windows 接收端正在运行",
-				Font: Font{PointSize: 16, Bold: true},
-			},
-			Label{
-				Text: "关闭窗口后程序会继续留在系统托盘，收到短信时直接显示 Windows 通知。",
-			},
-			GroupBox{
-				Title:  "连接与配对",
-				Layout: VBox{Margins: Margins{Left: 12, Top: 12, Right: 12, Bottom: 12}, Spacing: 8},
+			ScrollView{
+				HorizontalFixed: true,
+				Layout:          VBox{MarginsZero: true, Spacing: 12},
 				Children: []Widget{
-					Label{Text: "6 位配对码"},
-					Label{
-						AssignTo: &ui.codeLabel,
-						Text:     formatPairCode(app.pairCode()),
-						Font:     Font{PointSize: 28, Bold: true},
-					},
-					Label{AssignTo: &ui.addressLabel},
-					Label{Text: "局域网：正在监听 TCP 58123 / UDP 58124；手机仍使用原有 X-Xgy-Key 协议。"},
-					Label{Text: "云中继 Relay URL（HTTPS）"},
-					LineEdit{AssignTo: &ui.relayEdit, Text: app.relayURL()},
 					Composite{
-						Layout: HBox{Spacing: 8},
+						Layout: VBox{MarginsZero: true, Spacing: 4},
 						Children: []Widget{
-							PushButton{
-								Text: "保存 Relay URL",
-								OnClicked: func() {
-									if err := app.setRelayURL(ui.relayEdit.Text()); err != nil {
-										walk.MsgBox(ui.window, appName, "Relay URL 保存失败：\r\n"+err.Error(), walk.MsgBoxIconError)
+							Label{
+								AssignTo: &ui.statusTitle,
+								Text:     "正在检查同步状态…",
+								Font:     Font{PointSize: 16, Bold: true},
+							},
+							Label{AssignTo: &ui.statusDetail},
+							Label{
+								Text:      "关闭窗口后程序继续在系统托盘接收，收到短信时显示 Windows 通知。",
+								TextColor: walk.RGB(0x66, 0x66, 0x66),
+							},
+						},
+					},
+					GroupBox{
+						Title:  fmt.Sprintf("最近短信（最新在上，显示最近 %d 条）", historyDisplayLimit),
+						Layout: VBox{Margins: Margins{Left: 12, Top: 12, Right: 12, Bottom: 12}},
+						Children: []Widget{
+							Label{Text: "收到短信后会先写入本地历史文件，再向手机确认成功；完整记录不会自动删除。"},
+							TextEdit{
+								AssignTo: &ui.recentText,
+								ReadOnly: true,
+								VScroll:  true,
+								MinSize:  Size{Height: 210},
+							},
+						},
+					},
+					GroupBox{
+						Title:  "账号同步（互联网）",
+						Layout: VBox{Margins: Margins{Left: 12, Top: 12, Right: 12, Bottom: 12}, Spacing: 6},
+						Children: []Widget{
+							Label{Text: "默认 API：" + defaultAccountAPIURL + "（账号同步不会替换局域网和旧版云配对）"},
+							Label{AssignTo: &ui.accountStatus, Text: "未登录"},
+							Composite{
+								AssignTo: &ui.accountLoginPanel,
+								Layout:   VBox{MarginsZero: true, Spacing: 6},
+								Children: []Widget{
+									Label{Text: "登录用户名或邮箱"},
+									LineEdit{AssignTo: &ui.accountIdentifier, CueBanner: "用户名或邮箱"},
+									Label{Text: "登录密码"},
+									LineEdit{AssignTo: &ui.accountPassword, CueBanner: "密码", PasswordMode: true},
+									Composite{
+										Layout: HBox{Spacing: 8},
+										Children: []Widget{
+											PushButton{AssignTo: &ui.accountLogin, Text: "登录", OnClicked: func() { ui.loginAccount() }},
+											HSpacer{},
+										},
+									},
+									Label{Text: "注册信息（注册时填写，登录时可留空）"},
+									Composite{
+										Layout: HBox{Spacing: 6},
+										Children: []Widget{
+											Label{Text: "用户名"},
+											LineEdit{AssignTo: &ui.accountUsername, CueBanner: "用户名", StretchFactor: 1},
+											Label{Text: "邮箱"},
+											LineEdit{AssignTo: &ui.accountEmail, CueBanner: "邮箱", StretchFactor: 1},
+										},
+									},
+									Composite{
+										Layout: HBox{Spacing: 8},
+										Children: []Widget{
+											PushButton{AssignTo: &ui.accountRegister, Text: "注册并登录", OnClicked: func() { ui.registerAccount() }},
+											HSpacer{},
+										},
+									},
+								},
+							},
+							Composite{
+								AssignTo: &ui.accountSessionPanel,
+								Layout:   HBox{MarginsZero: true, Spacing: 8},
+								Children: []Widget{
+									PushButton{AssignTo: &ui.accountLogout, Text: "退出账号", OnClicked: func() { ui.logoutAccount() }},
+									PushButton{AssignTo: &ui.accountRefresh, Text: "刷新设备", OnClicked: func() { ui.refreshAccountDevices() }},
+									PushButton{AssignTo: &ui.accountRemove, Text: "移除本机设备", OnClicked: func() { ui.removeAccountDevice() }},
+									HSpacer{},
+								},
+							},
+							TextEdit{
+								AssignTo: &ui.accountDevices,
+								ReadOnly: true,
+								VScroll:  true,
+								MinSize:  Size{Height: 74},
+							},
+						},
+					},
+					GroupBox{
+						Title:  "局域网与配对云端",
+						Layout: VBox{Margins: Margins{Left: 12, Top: 12, Right: 12, Bottom: 12}, Spacing: 8},
+						Children: []Widget{
+							Label{Text: "6 位配对码"},
+							Label{
+								AssignTo: &ui.codeLabel,
+								Text:     formatPairCode(app.pairCode()),
+								Font:     Font{PointSize: 28, Bold: true},
+							},
+							Label{AssignTo: &ui.addressLabel},
+							Label{Text: "局域网：正在监听 TCP 58123 / UDP 58124；手机仍使用原有 X-Xgy-Key 协议。"},
+							Label{Text: "云中继 Relay URL（HTTPS）"},
+							LineEdit{AssignTo: &ui.relayEdit, Text: app.relayURL()},
+							Composite{
+								Layout: HBox{Spacing: 8},
+								Children: []Widget{
+									PushButton{
+										Text: "保存 Relay URL",
+										OnClicked: func() {
+											if err := app.setRelayURL(ui.relayEdit.Text()); err != nil {
+												walk.MsgBox(ui.window, appName, "Relay URL 保存失败：\r\n"+err.Error(), walk.MsgBoxIconError)
+												return
+											}
+											ui.refresh()
+										},
+									},
+									PushButton{
+										AssignTo:  &ui.pairButton,
+										Text:      cloudPairButtonText(app.cloudCredentials()),
+										Enabled:   !cloudPairingPending(app.cloudCredentials()),
+										OnClicked: func() { ui.startCloudPairing() },
+									},
+									HSpacer{},
+								},
+							},
+							Composite{
+								Layout: HBox{Spacing: 8},
+								Children: []Widget{
+									PushButton{
+										Text: "复制配对码",
+										OnClicked: func() {
+											ui.copyText("配对码", app.pairCode())
+										},
+									},
+									PushButton{
+										Text: "复制云配对码",
+										OnClicked: func() {
+											credentials := app.cloudCredentials()
+											if app.cloud == nil || !cloudPairingPending(credentials) {
+												walk.MsgBox(ui.window, appName, "请先开始云配对。", walk.MsgBoxIconInformation)
+												return
+											}
+											ui.copyText("云配对码", credentials.PairCode)
+										},
+									},
+									PushButton{
+										Text: "发送测试通知",
+										OnClicked: func() {
+											app.showSMSNotification(SMS{
+												From:       "Xgy LAN SMS 测试",
+												Text:       "这是原生 Windows 通知测试，验证码 123456。",
+												ReceivedAt: time.Now().UnixMilli(),
+												Device:     "Windows",
+											})
+										},
+									},
+									HSpacer{},
+								},
+							},
+							Label{Text: "云配对状态 / 配对码（仅待配对时在手机端输入）"},
+							Label{
+								AssignTo: &ui.cloudCodeLabel,
+								Text:     "未创建",
+								Font:     Font{PointSize: 22, Bold: true},
+							},
+							Label{AssignTo: &ui.cloudStatusLabel},
+						},
+					},
+					GroupBox{
+						Title:  "启动与通知",
+						Layout: VBox{Margins: Margins{Left: 12, Top: 12, Right: 12, Bottom: 12}, Spacing: 8},
+						Children: []Widget{
+							CheckBox{
+								AssignTo: &ui.autoStartCheck,
+								Text:     "开机自动启动",
+								Checked:  autoStartEnabled,
+								OnCheckedChanged: func() {
+									if ui.updatingSettings {
 										return
+									}
+									if err := app.setAutoStartEnabled(ui.autoStartCheck.Checked()); err != nil {
+										walk.MsgBox(ui.window, appName, "开机自动启动设置失败：\r\n"+err.Error(), walk.MsgBoxIconError)
 									}
 									ui.refresh()
 								},
 							},
-							PushButton{
-								AssignTo:  &ui.pairButton,
-								Text:      cloudPairButtonText(app.cloudCredentials()),
-								Enabled:   !cloudPairingPending(app.cloudCredentials()),
-								OnClicked: func() { ui.startCloudPairing() },
-							},
-							HSpacer{},
-						},
-					},
-					Composite{
-						Layout: HBox{Spacing: 8},
-						Children: []Widget{
-							PushButton{
-								Text: "复制配对码",
-								OnClicked: func() {
-									ui.copyText("配对码", app.pairCode())
-								},
-							},
-							PushButton{
-								Text: "复制云配对码",
-								OnClicked: func() {
-									credentials := app.cloudCredentials()
-									if app.cloud == nil || !cloudPairingPending(credentials) {
-										walk.MsgBox(ui.window, appName, "请先开始云配对。", walk.MsgBoxIconInformation)
+							CheckBox{
+								AssignTo: &ui.trayFallbackCheck,
+								Text:     "原生通知失败时使用托盘提醒（不会重复弹出）",
+								Checked:  app.trayFallbackEnabled(),
+								OnCheckedChanged: func() {
+									if ui.updatingSettings {
 										return
 									}
-									ui.copyText("云配对码", credentials.PairCode)
-								},
-							},
-							PushButton{
-								Text: "发送测试通知",
-								OnClicked: func() {
-									app.showSMSNotification(SMS{
-										From:       "Xgy LAN SMS 测试",
-										Text:       "这是原生 Windows 通知测试，验证码 123456。",
-										ReceivedAt: time.Now().UnixMilli(),
-										Device:     "Windows",
-									})
-								},
-							},
-							HSpacer{},
-						},
-					},
-					Label{Text: "云配对状态 / 配对码（仅待配对时在手机端输入）"},
-					Label{
-						AssignTo: &ui.cloudCodeLabel,
-						Text:     "未创建",
-						Font:     Font{PointSize: 22, Bold: true},
-					},
-					Label{AssignTo: &ui.cloudStatusLabel},
-				},
-			},
-			GroupBox{
-				Title:  "MsgDock 账号同步（互联网）",
-				Layout: VBox{Margins: Margins{Left: 12, Top: 12, Right: 12, Bottom: 12}, Spacing: 6},
-				Children: []Widget{
-					Label{Text: "默认 API：" + defaultAccountAPIURL + "（账号同步不会替换局域网和旧版云配对）"},
-					Label{AssignTo: &ui.accountStatus, Text: "未登录"},
-					Label{Text: "登录用户名或邮箱"},
-					LineEdit{AssignTo: &ui.accountIdentifier, CueBanner: "用户名或邮箱"},
-					Label{Text: "登录密码"},
-					LineEdit{AssignTo: &ui.accountPassword, CueBanner: "密码", PasswordMode: true},
-					Composite{
-						Layout: HBox{Spacing: 8},
-						Children: []Widget{
-							PushButton{AssignTo: &ui.accountLogin, Text: "登录", OnClicked: func() { ui.loginAccount() }},
-							PushButton{AssignTo: &ui.accountLogout, Text: "退出账号", OnClicked: func() { ui.logoutAccount() }},
-							HSpacer{},
-						},
-					},
-					Label{Text: "注册信息（注册时填写，登录时可留空）"},
-					Composite{
-						Layout: HBox{Spacing: 6},
-						Children: []Widget{
-							Label{Text: "用户名"},
-							LineEdit{AssignTo: &ui.accountUsername, CueBanner: "用户名", StretchFactor: 1},
-							Label{Text: "邮箱"},
-							LineEdit{AssignTo: &ui.accountEmail, CueBanner: "邮箱", StretchFactor: 1},
-						},
-					},
-					Composite{
-						Layout: HBox{Spacing: 8},
-						Children: []Widget{
-							PushButton{AssignTo: &ui.accountRegister, Text: "注册并登录", OnClicked: func() { ui.registerAccount() }},
-							PushButton{AssignTo: &ui.accountRefresh, Text: "刷新设备", OnClicked: func() { ui.refreshAccountDevices() }},
-							PushButton{AssignTo: &ui.accountRemove, Text: "移除本机设备", OnClicked: func() { ui.removeAccountDevice() }},
-							HSpacer{},
-						},
-					},
-					TextEdit{
-						AssignTo: &ui.accountDevices,
-						ReadOnly: true,
-						VScroll:  true,
-						MinSize:  Size{Height: 74},
-					},
-				},
-			},
-			GroupBox{
-				Title:  fmt.Sprintf("短信历史记录（显示最近 %d 条）", historyDisplayLimit),
-				Layout: VBox{Margins: Margins{Left: 12, Top: 12, Right: 12, Bottom: 12}},
-				Children: []Widget{
-					Label{Text: "收到短信后会先写入本地历史文件，再向手机确认成功；完整记录不会自动删除。"},
-					TextEdit{
-						AssignTo: &ui.recentText,
-						ReadOnly: true,
-						VScroll:  true,
-						MinSize:  Size{Height: 210},
-					},
-				},
-			},
-			GroupBox{
-				Title:  "启动与通知",
-				Layout: VBox{Margins: Margins{Left: 12, Top: 12, Right: 12, Bottom: 12}, Spacing: 8},
-				Children: []Widget{
-					CheckBox{
-						AssignTo: &ui.autoStartCheck,
-						Text:     "开机自动启动",
-						Checked:  autoStartEnabled,
-						OnCheckedChanged: func() {
-							if ui.updatingSettings {
-								return
-							}
-							if err := app.setAutoStartEnabled(ui.autoStartCheck.Checked()); err != nil {
-								walk.MsgBox(ui.window, appName, "开机自动启动设置失败：\r\n"+err.Error(), walk.MsgBoxIconError)
-							}
-							ui.refresh()
-						},
-					},
-					CheckBox{
-						AssignTo: &ui.trayFallbackCheck,
-						Text:     "原生通知失败时使用托盘提醒（不会重复弹出）",
-						Checked:  app.trayFallbackEnabled(),
-						OnCheckedChanged: func() {
-							if ui.updatingSettings {
-								return
-							}
-							if err := app.setTrayFallbackEnabled(ui.trayFallbackCheck.Checked()); err != nil {
-								walk.MsgBox(ui.window, appName, "兼容托盘提醒设置失败：\r\n"+err.Error(), walk.MsgBoxIconError)
-							}
-							ui.refresh()
-						},
-					},
-					Composite{
-						Layout: HBox{Spacing: 8},
-						Children: []Widget{
-							PushButton{
-								Text: "打开 Windows 通知设置",
-								OnClicked: func() {
-									if err := openWindowsNotificationSettings(); err != nil {
-										walk.MsgBox(ui.window, appName, "打开 Windows 通知设置失败：\r\n"+err.Error(), walk.MsgBoxIconError)
+									if err := app.setTrayFallbackEnabled(ui.trayFallbackCheck.Checked()); err != nil {
+										walk.MsgBox(ui.window, appName, "兼容托盘提醒设置失败：\r\n"+err.Error(), walk.MsgBoxIconError)
 									}
+									ui.refresh()
 								},
 							},
-							Label{Text: "可在此检查横幅、声音和勿扰设置。"},
-							HSpacer{},
+							Composite{
+								Layout: HBox{Spacing: 8},
+								Children: []Widget{
+									PushButton{
+										Text: "打开 Windows 通知设置",
+										OnClicked: func() {
+											if err := openWindowsNotificationSettings(); err != nil {
+												walk.MsgBox(ui.window, appName, "打开 Windows 通知设置失败：\r\n"+err.Error(), walk.MsgBoxIconError)
+											}
+										},
+									},
+									Label{Text: "可在此检查横幅、声音和勿扰设置。"},
+									HSpacer{},
+								},
+							},
 						},
 					},
 				},
@@ -296,7 +330,7 @@ func newDesktopUI(app *App) (*desktopUI, error) {
 			log.Printf("set tray icon failed: %v", err)
 		}
 	}
-	_ = ui.notifyIcon.SetToolTip(appName + " · 配对码 " + formatPairCode(app.pairCode()))
+	ui.updateToolTip(ui.health().Tooltip)
 	ui.notifyIcon.MouseDown().Attach(func(x, y int, button walk.MouseButton) {
 		if button == walk.LeftButton {
 			ui.showStatus()
@@ -451,14 +485,83 @@ func (ui *desktopUI) showStatus() {
 	if ui.window == nil {
 		return
 	}
-	ui.refresh()
+	// Show first: refresh() only redraws a visible window.
 	ui.window.Show()
+	ui.refresh()
 	_ = ui.window.Activate()
+}
+
+// health gathers one snapshot for the status header and the tray tooltip.
+func (ui *desktopUI) health() desktopHealth {
+	input := desktopHealthInput{PairCode: ui.app.pairCode(), Now: time.Now(), NotifyDisabled: ui.app.notifyFailed.Load()}
+	if account := ui.app.accountClient(); account != nil {
+		snapshot := account.snapshot()
+		credentials := ui.app.accountCredentials()
+		input.AccountState = snapshot.State
+		input.AccountDetail = snapshot.Detail
+		input.AccountName = accountStatusDetail(credentials)
+		if input.AccountState == "" && credentials.SessionToken != "" {
+			input.AccountState = "账号已登录"
+		}
+	}
+	if ui.app.cloud != nil {
+		snapshot := ui.app.cloud.snapshot()
+		input.CloudPaired = snapshot.Paired
+		input.CloudState = snapshot.State
+		input.CloudDetail = snapshot.Detail
+	}
+	if recent := ui.app.recentSnapshot(); len(recent) > 0 {
+		input.LastSMSAt = recent[0].ReceivedAt
+		input.LastSMSFrom = recent[0].From
+	}
+	return evaluateDesktopHealth(input)
+}
+
+func (ui *desktopUI) updateToolTip(tip string) {
+	if ui.notifyIcon == nil || tip == ui.lastToolTip {
+		return
+	}
+	if err := ui.notifyIcon.SetToolTip(tip); err != nil {
+		log.Printf("set tray tooltip failed: %v", err)
+		return
+	}
+	ui.lastToolTip = tip
+}
+
+func statusColor(level desktopLevel) walk.Color {
+	switch level {
+	case desktopError:
+		return walk.RGB(0xC6, 0x28, 0x28)
+	case desktopWarn:
+		return walk.RGB(0xB2, 0x6A, 0x00)
+	case desktopSetup:
+		return walk.RGB(0x44, 0x44, 0x44)
+	default:
+		return walk.RGB(0x1B, 0x7F, 0x3B)
+	}
 }
 
 func (ui *desktopUI) refresh() {
 	if ui.window == nil || ui.app.isClosing() {
 		return
+	}
+	health := ui.health()
+	ui.updateToolTip(health.Tooltip)
+	// The 1 s ticker keeps running while the window sits in the tray. Hidden
+	// windows only need the tooltip; skipping the registry read and the large
+	// history SetText saves wakeups and keeps the reader's scroll position.
+	if !ui.window.Visible() {
+		return
+	}
+	if ui.statusTitle != nil {
+		ui.statusTitle.SetText(health.Title)
+		if health.Level != ui.lastStatusLevel || ui.statusTitle.TextColor() != statusColor(health.Level) {
+			ui.statusTitle.SetTextColor(statusColor(health.Level))
+			ui.lastStatusLevel = health.Level
+		}
+	}
+	if ui.statusDetail != nil {
+		ui.statusDetail.SetText(health.Detail)
 	}
 	ui.updatingSettings = true
 	if ui.autoStartCheck != nil {
@@ -505,6 +608,13 @@ func (ui *desktopUI) refresh() {
 			ui.accountDevices.SetText(formatAccountDevices(account.devicesSnapshot(), credentials.DeviceID))
 		}
 		busy := ui.accountBusy
+		loggedIn := credentials.SessionToken != ""
+		if ui.accountLoginPanel != nil && ui.accountLoginPanel.Visible() == loggedIn {
+			ui.accountLoginPanel.SetVisible(!loggedIn)
+		}
+		if ui.accountSessionPanel != nil && ui.accountSessionPanel.Visible() != loggedIn {
+			ui.accountSessionPanel.SetVisible(loggedIn)
+		}
 		if ui.accountLogin != nil {
 			ui.accountLogin.SetEnabled(!busy)
 		}
@@ -523,6 +633,16 @@ func (ui *desktopUI) refresh() {
 	}
 
 	recent := ui.app.recentSnapshot()
+	// Re-setting identical text every second resets the scroll position and
+	// selection; only redraw when the newest/oldest record or count changed.
+	recentKey := fmt.Sprint(len(recent))
+	if len(recent) > 0 {
+		recentKey += "|" + recent[0].ID + "|" + fmt.Sprint(recent[0].ReceivedAt) + "|" + recent[len(recent)-1].ID
+	}
+	if recentKey == ui.lastRecentKey {
+		return
+	}
+	ui.lastRecentKey = recentKey
 	if len(recent) == 0 {
 		ui.recentText.SetText("尚无历史记录。\r\n\r\n保存位置：" + ui.app.historyPath())
 		return

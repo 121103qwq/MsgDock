@@ -43,6 +43,14 @@
 
 ## 交接记录
 
+### 2026-10-01 / Claude（云端）/ DONE — 状态优先的首页与通知（分支候选，未发布）
+
+- 基于 `claude/android-power-keepalive`（上一轮 Claude 会话的省电改动，此前未验证、未写交接）继续，分支 `claude/ui-status-first`。没有修改 main、release 分支或标签，没有部署网站、没有发布安装包。
+- 省电分支复核：代码逻辑与 DESIGN 中“Android 省电与保活”一致；类型检查通过，原有 59 项加新增 6 项 JVM 测试通过。
+- 本轮改动见 DESIGN“状态优先的首页”。协议、端口、去重、落盘后 ACK、通知节流和自动复制条件均未改。
+- 验证环境是云端 Linux，没有 Android SDK 和 Windows：Android 用 Robolectric android-all（API 36）做 javac 类型检查，R 为脚本生成的桩，83 项 JVM 测试通过，未运行 aapt2、d8、lint 或模拟器。Windows 用 `GOOS=windows` 完成 vet、测试编译和 GUI EXE 交叉编译；纯逻辑测试（通知策略、状态文案、Toast XML，共 13 项）抽到 Linux 包运行通过；含 WinRT/注册表的测试未运行。
+- 待真机确认：首页在 360 dp 宽、200% 字体下的排版；状态色在深色主题下的对比度；Windows ScrollView 内分组的实际布局和托盘提示截断；Toast attribution 行的显示。
+
 ### 2026-10-01 / Codex / DONE — v0.7.6 双端预览发布及网站下载
 
 - 用户明确回复“授权”，允许发布上一轮 UI、通知与空闲等待改动，并同步安装包、源码、清单和网站。只在唯一共享开发目录操作，Zcode 为 IDLE；未创建第二开发目录。
