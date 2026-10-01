@@ -27,6 +27,8 @@ const (
 	discoveryPort = 58124
 	appName       = "MsgDock"
 	appVersion    = "0.7.7"
+	// shutdownGrace bounds the cleanup after the user chooses 退出.
+	shutdownGrace = 10 * time.Second
 	// defaultRelayURL is kept in one place so the desktop client and its
 	// installer can be changed without hunting through the cloud code.
 	defaultRelayURL = "https://xgy-sms-relay.xgy2021sh.workers.dev"
@@ -132,7 +134,11 @@ func main() {
 		defer releaseSingleInstance(instance)
 	}
 	if alreadyRunning {
-		showAlreadyRunning()
+		// Auto-start (--tray) stays silent; a manual launch brings the running
+		// window forward, and only an older instance gets the explanation.
+		if !startInTray && !signalRunningInstance() {
+			showAlreadyRunning()
+		}
 		return
 	}
 
@@ -183,6 +189,16 @@ func main() {
 		ui.showStatus()
 	}
 	ui.run()
+
+	// A hung shutdown would keep holding the single-instance mutex with no tray
+	// icon, so the next launch says "already running" although nothing is
+	// visible. History is persisted before any ACK, so forcing the exit after a
+	// grace period loses nothing.
+	go func() {
+		time.Sleep(shutdownGrace)
+		log.Printf("shutdown exceeded %s; forcing exit", shutdownGrace)
+		os.Exit(0)
+	}()
 
 	// Stop new inputs first. Cloud cancellation then lets any in-flight poll
 	// finish before the notification worker and native window are disposed.

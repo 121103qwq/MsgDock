@@ -639,6 +639,36 @@ func (ui *desktopUI) run() {
 			}
 		}
 	}()
+	if event, err := createShowInstanceEvent(); err != nil {
+		log.Printf("create show-window event failed: %v", err)
+	} else {
+		refreshWG.Add(1)
+		go func() {
+			defer refreshWG.Done()
+			defer windows.CloseHandle(event)
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				result, err := windows.WaitForSingleObject(event, 500)
+				if err != nil {
+					log.Printf("wait for show-window event failed: %v", err)
+					return
+				}
+				if result != windows.WAIT_OBJECT_0 {
+					continue
+				}
+				ui.stateMu.RLock()
+				window := ui.window
+				ui.stateMu.RUnlock()
+				if window != nil && !ui.app.isClosing() {
+					window.Synchronize(ui.showStatus)
+				}
+			}
+		}()
+	}
 	ui.window.Run()
 	close(done)
 	refreshWG.Wait()
@@ -1391,8 +1421,43 @@ func releaseSingleInstance(handle windows.Handle) {
 	_ = windows.CloseHandle(handle)
 }
 
+// showInstanceEventName is an auto-reset event the running instance waits on.
+// A second launch sets it so the existing window comes to the front instead of
+// leaving the user with "already running" and no visible window.
+const showInstanceEventName = singleInstanceName + `.Show`
+
+var procAllowSetForegroundWindow = windows.NewLazySystemDLL("user32.dll").NewProc("AllowSetForegroundWindow")
+
+// signalRunningInstance asks the running instance to show its window. It
+// returns false when that instance is too old to listen (v0.7.6 and earlier).
+func signalRunningInstance() bool {
+	name, err := windows.UTF16PtrFromString(showInstanceEventName)
+	if err != nil {
+		return false
+	}
+	event, err := windows.OpenEvent(windows.EVENT_MODIFY_STATE, false, name)
+	if err != nil {
+		return false
+	}
+	defer windows.CloseHandle(event)
+	// Let the running instance take the foreground; ASFW_ANY is (DWORD)-1.
+	_, _, _ = procAllowSetForegroundWindow.Call(uintptr(^uint32(0)))
+	return windows.SetEvent(event) == nil
+}
+
+func createShowInstanceEvent() (windows.Handle, error) {
+	name, err := windows.UTF16PtrFromString(showInstanceEventName)
+	if err != nil {
+		return 0, err
+	}
+	return windows.CreateEvent(nil, 0, 0, name)
+}
+
 func showAlreadyRunning() {
-	walk.MsgBox(nil, appName, "程序已在系统托盘中运行。", walk.MsgBoxIconInformation)
+	walk.MsgBox(nil, appName, "MsgDock 已经在运行，可能是旧版本。\r\n\r\n"+
+		"它的图标在任务栏右下角，可能收在“^”隐藏图标里。\r\n"+
+		"要换成这个版本，请先右键托盘图标选“退出”；找不到图标时，在任务管理器里结束 MsgDock，再重新打开。",
+		walk.MsgBoxIconInformation)
 }
 
 func showFatalError(title string, err error) {
