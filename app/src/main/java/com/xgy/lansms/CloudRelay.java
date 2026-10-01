@@ -162,12 +162,24 @@ public final class CloudRelay {
 
     /** Encrypts and durably enqueues one SMS for every sender link. */
     public static void enqueueSms(Context context, String id, String from, String text, long receivedAt, int sim, String device) {
+        if (enqueueSmsWithoutFlush(context, id, from, text, receivedAt, sim, device)) {
+            Context app = context.getApplicationContext();
+            EXECUTOR.execute(() -> flushOutbox(app));
+        }
+    }
+
+    /**
+     * Same as above but leaves the first flush to the caller, so the SMS broadcast can
+     * wait for it while the system still grants network access. Returns true if queued.
+     */
+    static boolean enqueueSmsWithoutFlush(Context context, String id, String from, String text,
+                                          long receivedAt, int sim, String device) {
         Context app = context.getApplicationContext();
         String messageId = id == null || id.isEmpty() ? UUID.randomUUID().toString() : id;
         List<CloudConfigStore.CloudLink> links = CloudConfigStore.senderLinks(app);
         if (links.isEmpty()) {
             TargetStore.prefs(app).edit().putString("cloud_last_error", "未完成云端发送配对，短信仅通过 LAN 转发").apply();
-            return;
+            return false;
         }
         boolean queued = false;
         for (CloudConfigStore.CloudLink link : links) {
@@ -187,7 +199,8 @@ public final class CloudRelay {
                 CloudOutboxStore.enqueue(app, envelope); queued = true;
             } catch (Exception e) { TargetStore.prefs(app).edit().putString("cloud_last_error", errorMessage(e)).apply(); }
         }
-        if (queued) { CloudSyncJobService.schedule(app); EXECUTOR.execute(() -> flushOutbox(app)); }
+        if (queued) CloudSyncJobService.schedule(app);
+        return queued;
     }
 
     public static void flushOutbox(Context context) {

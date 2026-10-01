@@ -24,15 +24,20 @@ public final class Notifications {
         }
     }
 
-    public static Notification serviceNotification(Context c, String code) {
-        ensureChannels(c);
+    /** Ongoing-notification text; the service compares it to skip identical re-posts. */
+    public static String serviceText(Context c, String code) {
         int cloudReceivers = CloudConfigStore.receiverLinks(c).size();
         String cloud = AccountStore.receiveEnabled(c) && AccountStore.hasAccount(c) ? "账号接收已开启"
                 : cloudReceivers == 0 ? "云接收未配对" : "云接收 " + cloudReceivers + " 条链路";
+        return "端口 58123 · 配对码 " + code + " · " + cloud;
+    }
+
+    public static Notification serviceNotification(Context c, String code) {
+        ensureChannels(c);
         return new Notification.Builder(c, SERVICE_CH)
                 .setSmallIcon(android.R.drawable.stat_notify_sync)
                 .setContentTitle("MsgDock 接收端运行中")
-                .setContentText("端口 58123 · 配对码 " + code + " · " + cloud)
+                .setContentText(serviceText(c, code))
                 .setOngoing(true)
                 .build();
     }
