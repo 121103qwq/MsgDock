@@ -2,7 +2,8 @@ param(
     [string]$SdkPath = 'C:\Android\Sdk',
     [string]$BuildToolsVersion = '35.0.0',
     [string]$GradleCache = $env:GRADLE_USER_HOME,
-    [string]$DebugKeystore = (Join-Path $env:USERPROFILE '.android\debug.keystore')
+    [string]$DebugKeystore = (Join-Path $env:USERPROFILE '.android\debug.keystore'),
+    [string]$OutputDirectory
 )
 # SDK-only fallback for the documented host Gradle loopback failure. No downloads or installs.
 $ErrorActionPreference = 'Stop'
@@ -11,7 +12,7 @@ $gradleText = Get-Content (Join-Path $root 'app\build.gradle') -Raw
 $version = [regex]::Match($gradleText, "versionName '([^']+)'").Groups[1].Value
 $versionCode = [regex]::Match($gradleText, 'versionCode (\d+)').Groups[1].Value
 $build = Join-Path $root ("build\manual-android-v$version-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-$out = Join-Path $root "outputs\MsgDock-v$version"
+$out = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory) } else { Join-Path $root "outputs\MsgDock-v$version" }
 $bt = Join-Path $SdkPath "build-tools\$BuildToolsVersion"
 $platform = Join-Path $SdkPath 'platforms\android-36\android.jar'
 $javaBin = Split-Path (Get-Command javac.exe -ErrorAction Stop).Source
@@ -42,7 +43,9 @@ $manifest.manifest.application.SetAttribute('debuggable', $androidNs, 'true') | 
 $sdk = $manifest.CreateElement('uses-sdk')
 $sdk.SetAttribute('minSdkVersion', $androidNs, '26') | Out-Null
 $sdk.SetAttribute('targetSdkVersion', $androidNs, '36') | Out-Null
-$manifest.manifest.AppendChild($sdk) | Out-Null
+# Android derives application compatibility defaults while parsing <application>.
+# uses-sdk must precede it, otherwise SDK-only APKs can become letterboxed.
+$manifest.manifest.InsertBefore($sdk, $manifest.manifest.application) | Out-Null
 $manifest.Save("$build\AndroidManifest.xml")
 Run "$bt\aapt2.exe" @('compile','--dir',"$root\app\src\main\res",'-o',"$build\res.zip")
 Run "$bt\aapt2.exe" @('link','-o',"$build\base.apk",'-I',$platform,'--manifest',"$build\AndroidManifest.xml",'--java',"$build\generated",'--auto-add-overlay',"$build\res.zip")

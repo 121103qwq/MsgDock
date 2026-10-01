@@ -20,6 +20,7 @@ public class BackgroundGuideActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.activity_background_guide);
+        WindowLayout.apply(this);
         int detected = BackgroundGuideContent.indexFor(Build.MANUFACTURER, Build.BRAND);
         selected = state == null ? detected : state.getInt("guide_index", detected);
         if (selected < 0 || selected >= BackgroundGuideContent.GUIDES.length) selected = detected;

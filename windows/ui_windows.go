@@ -51,6 +51,8 @@ type desktopUI struct {
 	pairingInFlight   bool
 	accountBusy       bool
 	exiting           bool
+	lastTrayFallback  time.Time
+	lastTrayMessageID string
 }
 
 func newDesktopUI(app *App) (*desktopUI, error) {
@@ -234,7 +236,7 @@ func newDesktopUI(app *App) (*desktopUI, error) {
 					},
 					CheckBox{
 						AssignTo: &ui.trayFallbackCheck,
-						Text:     "兼容托盘提醒（推荐，收到短信时额外显示托盘气泡）",
+						Text:     "原生通知失败时使用托盘提醒（不会重复弹出）",
 						Checked:  app.trayFallbackEnabled(),
 						OnCheckedChanged: func() {
 							if ui.updatingSettings {
@@ -412,7 +414,7 @@ func (ui *desktopUI) dispose() {
 	}
 }
 
-func (ui *desktopUI) enqueueTrayFallback(title, body string) {
+func (ui *desktopUI) enqueueTrayFallback(id, title, body string) {
 	if ui == nil || ui.app.isClosing() {
 		return
 	}
@@ -433,6 +435,11 @@ func (ui *desktopUI) enqueueTrayFallback(title, body string) {
 		if currentIcon == nil {
 			return
 		}
+		if (id != "" && id == ui.lastTrayMessageID) || time.Since(ui.lastTrayFallback) < notificationPopupInterval {
+			return
+		}
+		ui.lastTrayFallback = time.Now()
+		ui.lastTrayMessageID = id
 		if err := currentIcon.ShowInfo(title, body); err != nil {
 			log.Printf("compatibility tray notification failed: %v", err)
 		}
@@ -822,9 +829,24 @@ func (ui *desktopUI) copyText(label, value string) {
 		walk.MsgBox(ui.window, appName, "复制失败："+err.Error(), walk.MsgBoxIconError)
 		return
 	}
-	if ui.notifyIcon != nil {
-		_ = ui.notifyIcon.ShowInfo(appName, label+"已复制")
+}
+
+// Clipboard access belongs to Walk's GUI thread; copying never opens another
+// notification. Re-check age when dequeued after a busy UI.
+func (ui *desktopUI) enqueueVerificationCode(sms SMS, code string) {
+	ui.stateMu.RLock()
+	defer ui.stateMu.RUnlock()
+	if ui.window == nil || ui.app.isClosing() {
+		return
 	}
+	ui.window.Synchronize(func() {
+		if ui.app.isClosing() || !freshNotification(sms, time.Now()) {
+			return
+		}
+		if err := walk.Clipboard().SetText(code); err != nil {
+			log.Printf("automatic verification-code copy failed: %v", err)
+		}
+	})
 }
 
 func acquireSingleInstance() (windows.Handle, bool, error) {

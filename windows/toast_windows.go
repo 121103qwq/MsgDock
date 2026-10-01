@@ -9,9 +9,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"git.sr.ht/~jackmordaunt/go-toast/v2/wintoast"
 	"golang.org/x/sys/windows/registry"
@@ -37,11 +39,12 @@ type notificationWorker struct {
 	lifeMu  sync.RWMutex
 	stopped bool
 	push    func(SMS) error
+	cleanup func()
 }
 
 func newNotificationWorker(push func(SMS) error) *notificationWorker {
 	if push == nil {
-		push = pushSMSNotification
+		push = func(SMS) error { return errors.New("notification presenter is not configured") }
 	}
 	return &notificationWorker{
 		queue: make(chan notificationRequest, 32),
@@ -80,7 +83,17 @@ func (a *App) initializeNotifications() error {
 			ui.handleToastAction(arguments)
 		}
 	})
-	worker := newNotificationWorker(nil)
+	sender := &nativeToastSender{}
+	presenter := &smsNotificationPresenter{push: sender.push, now: time.Now, copyCode: func(sms SMS, code string) {
+		a.mu.RLock()
+		ui := a.ui
+		a.mu.RUnlock()
+		if ui != nil {
+			ui.enqueueVerificationCode(sms, code)
+		}
+	}}
+	worker := newNotificationWorker(presenter.deliver)
+	worker.cleanup = sender.close
 	a.mu.Lock()
 	a.notify = worker
 	a.mu.Unlock()
@@ -95,6 +108,11 @@ func (worker *notificationWorker) run() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	defer close(worker.done)
+	defer func() {
+		if worker.cleanup != nil {
+			worker.cleanup()
+		}
+	}()
 	for {
 		select {
 		case request := <-worker.queue:
@@ -173,10 +191,13 @@ func (a *App) showSMSNotification(sms SMS) error {
 		nativeErr = errors.New("native Windows notification is not initialized")
 		log.Printf("native Windows notification is not initialized")
 	}
-	if trayFallbackEnabled && ui != nil {
+	if nativeErr != nil {
+		logNotificationError(nativeErr)
+	}
+	if nativeErr != nil && trayFallbackEnabled && ui != nil {
 		title := truncateNotificationText(appName+" · "+sms.From, 60)
 		body := truncateNotificationText(sms.Text, 240)
-		ui.enqueueTrayFallback(title, body)
+		ui.enqueueTrayFallback(sms.ID, title, body)
 	}
 	return nativeErr
 }
@@ -192,13 +213,59 @@ func truncateNotificationText(value string, maxRunes int) string {
 	return string(text[:maxRunes-1]) + "…"
 }
 
-func pushSMSNotification(sms SMS) error {
-	xml := buildSMSNotificationXML(sms)
-	if err := wintoast.Push(notificationAppID, xml); err != nil {
-		logNotificationError(err)
+// Completion/ACK still requires synchronous native API success. Burst updates
+// replace one tagged card without queuing a banner for each incoming message.
+type smsNotificationPresenter struct {
+	push           func(string, bool) error
+	copyCode       func(SMS, string)
+	now            func() time.Time
+	lastPopup      time.Time
+	latestReceived int64
+	lastCopiedID   string
+}
+
+const notificationPopupInterval = 10 * time.Second
+
+func freshNotification(sms SMS, now time.Time) bool {
+	age := now.Sub(time.UnixMilli(sms.ReceivedAt))
+	return sms.ReceivedAt > 0 && age >= -30*time.Second && age <= 2*time.Minute
+}
+
+func (p *smsNotificationPresenter) deliver(sms SMS) error {
+	now := p.now()
+	// Backfilled history stays in the inbox; old OTPs never steal the clipboard.
+	if !freshNotification(sms, now) || sms.ReceivedAt < p.latestReceived {
+		return nil
+	}
+	suppress := !p.lastPopup.IsZero() && now.Sub(p.lastPopup) < notificationPopupInterval
+	if err := p.push(buildSMSNotificationXML(sms), suppress); err != nil {
 		return err
 	}
+	if !suppress {
+		p.lastPopup = now
+	}
+	p.latestReceived = sms.ReceivedAt
+	if code := automaticVerificationCode(sms.Text); code != "" && sms.ID != "" && sms.ID != p.lastCopiedID {
+		if p.copyCode != nil {
+			p.copyCode(sms, code)
+		}
+		p.lastCopiedID = sms.ID
+	}
 	return nil
+}
+
+// Manual copy retains the legacy extractor. Automatic writes require an OTP
+// keyword adjacent to a complete digit run, not an arbitrary order/phone number.
+var automaticCodePattern = regexp.MustCompile(`(?i)(?:验证码|校验码|动态码|验证代码|verification code|security code|one.time (?:password|code)|otp)[^0-9\r\n]{0,20}([0-9]{4,8})(?:[^0-9]|$)`)
+var leadingCodePattern = regexp.MustCompile(`(?i)(?:^|[^0-9])([0-9]{4,8})[^0-9\r\n]{0,20}(?:验证码|校验码|动态码|verification code|security code|one.time (?:password|code)|otp)`)
+
+func automaticVerificationCode(text string) string {
+	for _, pattern := range []*regexp.Regexp{automaticCodePattern, leadingCodePattern} {
+		if match := pattern.FindStringSubmatch(text); match != nil {
+			return match[1]
+		}
+	}
+	return ""
 }
 
 func buildSMSNotificationXML(sms SMS) string {
@@ -210,7 +277,7 @@ func buildSMSNotificationXML(sms SMS) string {
 	actions += fmt.Sprintf(`<action activationType="foreground" content="复制全文" arguments="copy-full:%s"/>`, encodeToastValue(sms.Text))
 
 	return fmt.Sprintf(
-		`<toast scenario="urgent" activationType="foreground" launch="show-status" duration="long"><visual><binding template="ToastGeneric"><text>%s</text><text>%s</text></binding></visual><actions>%s</actions><audio src="ms-winsoundevent:Notification.SMS"/></toast>`,
+		`<toast activationType="foreground" launch="show-status" duration="short"><visual><binding template="ToastGeneric"><text>%s</text><text>%s</text></binding></visual><actions>%s</actions><audio silent="true"/></toast>`,
 		xmlEscape(sms.From),
 		xmlEscape(sms.Text),
 		actions,

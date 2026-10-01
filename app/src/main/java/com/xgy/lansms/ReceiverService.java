@@ -28,6 +28,12 @@ public class ReceiverService extends Service {
     private volatile boolean running;
     private ServerSocket server;
     private final Object accountWake = new Object();
+    private long accountWakeVersion;
+    private final android.content.SharedPreferences.OnSharedPreferenceChangeListener accountSettings = (prefs, key) -> {
+        if (key == null || "receive_enabled".equals(key) || "user_id".equals(key)
+                || "device_token".equals(key) || "session_token".equals(key)
+                || "auth_required".equals(key)) wakeAccountReceiver();
+    };
     private android.net.ConnectivityManager.NetworkCallback accountNetworkCallback;
     private final ExecutorService pool = Executors.newCachedThreadPool();
 
@@ -38,6 +44,7 @@ public class ReceiverService extends Service {
         String code = TargetStore.ensurePairCode(this);
         startForegroundCompat(code);
         running = true;
+        AccountStore.prefs(this).registerOnSharedPreferenceChangeListener(accountSettings);
         runtimeStatus = "服务已启动，正在开启局域网接收…";
         registerAccountNetworkCallback();
         pool.execute(this::httpLoop);
@@ -72,6 +79,8 @@ public class ReceiverService extends Service {
             runtimeStatus = "未启动";
         }
         unregisterAccountNetworkCallback();
+        AccountStore.prefs(this).unregisterOnSharedPreferenceChangeListener(accountSettings);
+        wakeAccountReceiver();
         try { if (server != null) server.close(); } catch (Exception ignored) {}
         pool.shutdownNow();
         super.onDestroy();
@@ -355,7 +364,7 @@ public class ReceiverService extends Service {
     }
 
     private void triggerAccountSync() {
-        synchronized (accountWake) { accountWake.notifyAll(); }
+        wakeAccountReceiver();
         AccountApi.scheduleOutboxFlush(this);
         CloudSyncJobService.schedule(this);
         android.content.Context app = getApplicationContext();
@@ -393,14 +402,32 @@ public class ReceiverService extends Service {
     private void accountLoop() {
         long delay = 3000L;
         while (running) {
-            boolean success = AccountApi.pollInbox(this);
-            replayPendingNotifications();
-            delay = success ? 3000L : Math.min(300_000L, Math.max(3000L, delay) * 2L);
+            long version;
+            synchronized (accountWake) { version = accountWakeVersion; }
+            boolean enabled = AccountStore.receiveEnabled(this) && AccountStore.hasAccount(this)
+                    && !AccountStore.authRequired(this);
+            if (enabled) {
+                boolean success = AccountApi.pollInbox(this);
+                replayPendingNotifications();
+                delay = success ? 3000L : Math.min(300_000L, Math.max(3000L, delay) * 2L);
+            } else {
+                delay = 3000L;
+            }
             synchronized (accountWake) {
                 if (!running) return;
-                try { accountWake.wait(delay); }
+                // Guard against a setting/network change between the check and
+                // wait. No account reception means no periodic wakeup at all.
+                if (version != accountWakeVersion) continue;
+                try { accountWake.wait(enabled ? delay : 0L); }
                 catch (InterruptedException e) { return; }
             }
+        }
+    }
+
+    private void wakeAccountReceiver() {
+        synchronized (accountWake) {
+            accountWakeVersion++;
+            accountWake.notifyAll();
         }
     }
 

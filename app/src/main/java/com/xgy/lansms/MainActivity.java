@@ -49,6 +49,7 @@ public class MainActivity extends Activity {
         super.onCreate(b);
         if (b != null) pendingPermission = b.getInt("pending_permission", 0);
         setContentView(R.layout.activity_main);
+        WindowLayout.apply(this);
         
         Notifications.ensureChannels(this);
         ReceiverService.migrateReceiverEnabled(this);

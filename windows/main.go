@@ -26,7 +26,7 @@ const (
 	httpPort      = 58123
 	discoveryPort = 58124
 	appName       = "MsgDock"
-	appVersion    = "0.7.0"
+	appVersion    = "0.7.6"
 	// defaultRelayURL is kept in one place so the desktop client and its
 	// installer can be changed without hunting through the cloud code.
 	defaultRelayURL = "https://xgy-sms-relay.xgy2021sh.workers.dev"

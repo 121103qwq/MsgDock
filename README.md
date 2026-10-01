@@ -7,11 +7,19 @@ MsgDock 把 Android 收到的传统 SMS 同步到局域网 Windows、互联网 W
 ## 使用与下载
 
 - 网页收件箱：[msgdock.dpdns.org](https://msgdock.dpdns.org)
-- [Android v0.7.5 预览版](https://github.com/121103qwq/MsgDock/releases/tag/v0.7.5)：APK、完整源码 ZIP 和 SHA-256 校验文件。
-- [Windows v0.7.0](https://github.com/121103qwq/MsgDock/releases/download/v0.7.0/MsgDock-Windows-v0.7.0.exe)：x64 单 EXE，本轮未更新 Windows。
-- [公开源码与开发记录](https://github.com/121103qwq/MsgDock)。当前发布快照在 `release/msgdock-v0.7.5` 分支，实机验收完成前不自动合并。
+- [Android v0.7.6 预览版](https://github.com/121103qwq/MsgDock/releases/download/v0.7.6/MsgDock-Android-v0.7.6-debug.apk)：沿用旧调试签名的 APK。
+- [Windows v0.7.6 预览版](https://github.com/121103qwq/MsgDock/releases/download/v0.7.6/MsgDock-Windows-v0.7.6.exe)：x64 单 EXE。
+- [版本说明、完整源码和 SHA-256 清单](https://github.com/121103qwq/MsgDock/releases/tag/v0.7.6)。
+- [公开源码与开发记录](https://github.com/121103qwq/MsgDock)。开发分支为 `maintenance/shared-workspace`，发布源码由标签 `v0.7.6` 固定，实机验收完成前不自动合并。
 
 这是预览版：Android 为调试签名，Windows 未做代码签名，锁屏/HyperOS 和真实短信端到端仍待实机验收。升级前请保留旧版备份；GitHub 下载在部分网络下可能较慢。
+
+## v0.7.6 改进（2026-10-01）
+
+- Android：修复 SDK 兜底打包导致的兼容留白，统一系统栏、挖孔和键盘避让；未启用账号接收时改为事件等待。
+- Windows：取消紧急通知，连续短信更新同一张通知卡片，10 秒内不重复弹横幅。显示发送者和正文，保留复制操作；近期且有明确验证码语义的短信自动复制验证码。历史补齐不弹窗、不自动复制。
+- Android 独立模拟器布局检查和 Windows 原生通知 API 检查已通过。真机锁屏、真实短信、Windows 通知按钮点击和实际剪贴板端到端仍待验收。
+- Android 与 Windows 本次均更新为 v0.7.6，旧版本资产保留。发送手机本来就是收到短信即上传；接收端仍使用轮询，尚未接入服务器推送。验证范围见 `DELIVERY-v0.7.6.md`。
 
 ## 架构
 
@@ -36,7 +44,7 @@ token 哈希，不保存明文凭据。
 旧 `/v1/*` 配对 Relay 继续使用 P-256 ECDH、HKDF-SHA256 和 AES-256-GCM，Cloudflare 只看到
 密文。旧链路不会因升级到 v0.7.0 失效，也不会与账号 token 混用。
 
-## Android v0.7.5
+## Android v0.7.6
 
 - 首页新增“后台运行教程”：按品牌推荐，也能手动切换；离线说明电池优化、最近任务小锁、自启动三项设置。小米包含长按卡片点小锁与新版手机管家入口，华为/荣耀说明“不允许电池优化”的含义。
 - 覆盖小米/Redmi/POCO、华为、荣耀、OPPO/一加、realme、vivo/iQOO、三星、华硕/ROG、Google/原生 Android，并为其他品牌提供明确标注的通用排查；[来源与版本范围](docs/background-guide-sources.md)可查。
@@ -47,8 +55,8 @@ token 哈希，不保存明文凭据。
 - 在账号区勾选“接收账号短信（无需配对）”，登录与发送手机相同的账号即可接收；接收端无需短信权限。“立即收取”可手动刷新，后台会分页补齐。
 - 扫描等待附近设备授权并防止重复启动；接收状态反映实际监听结果。通知关闭仍保存历史，端口占用会明确报错。
 - 主 Relay 固定为 `https://msgdock.dpdns.org`，备用为 `https://xgy-sms-relay.xgy2021sh.workers.dev`；可安全重试的网络故障自动尝试备用，LAN 独立运行。注册/登录等结果不明的写入不自动重复提交。
-- APK：`outputs/MsgDock-v0.7.5/MsgDock-Android-v0.7.5-debug.apk`，versionCode 15，沿用旧调试签名。
-- 新版验证范围和产物见 `DELIVERY-v0.7.5.md`。v0.7.4 已验证的收件箱、LAN 去重和复制逻辑本轮未修改。
+- APK：`outputs/MsgDock-v0.7.6/MsgDock-Android-v0.7.6-debug.apk`，versionCode 16，沿用旧调试签名。
+- 新版验证范围和产物见 `DELIVERY-v0.7.6.md`。v0.7.4 已验证的收件箱、LAN 去重和复制逻辑本轮未修改。
 - SDK 本机构建兜底：`./tools/build-android-local.ps1`，使用已有 SDK/JDK/测试依赖缓存。Gradle lint 因已记录的主机故障未运行；真实 SMS、锁屏、HyperOS 和后台保活仍待真机验收。
 
 - 收到 SMS 后，若已登录账号，先把消息和唯一 `client_message_id` 写入本地 Account Outbox。
@@ -62,14 +70,14 @@ token 哈希，不保存明文凭据。
 Android 系统“强行停止”仍是硬边界：强行停止后必须手动打开一次 App。HyperOS 还应允许
 自启动、电池无限制，并避免系统网络短信功能截断真实 SMS 广播。
 
-## Windows v0.7.0
+## Windows v0.7.6
 
 - 单 EXE、Windows GUI subsystem、无 CMD 黑框、不自动打开浏览器。
 - 托盘驻留，可打开原生状态/设置窗口并正常退出。
 - 用户名/邮箱登录、设备注册和设备移除。
 - 每 3 秒调用 `GET /api/v1/messages?after=<last_seq>`；断网后从持久游标继续补齐。
 - 短信先写入 `%APPDATA%\XgyLanSms\history.jsonl` 和待通知账本，再提交 Windows Toast。
-- Toast 显示发送者与正文，并提供“复制验证码”“复制全文”；托盘气泡保留为兼容兜底。
+- Toast 显示发送者与正文，并提供“复制验证码”“复制全文”；取消紧急通知，连续消息更新同一卡片。近期明确验证码自动复制；原生 API 失败时才使用托盘兜底。
 - 原生 Toast 或持久化失败时不推进 `last_seq`，下次轮询继续处理。
 - 可选开机自启使用 `--tray`，保留旧配置目录以便无损升级。
 
@@ -113,8 +121,8 @@ D1 表和索引见 `cloudflare/migrations/0001_accounts.sql`。
 
 ## 第一次使用
 
-1. 安装 `outputs/MsgDock-v0.7.5/MsgDock-Android-v0.7.5-debug.apk`，按使用功能授予权限；打开首页“后台运行教程”，检查本机的电池、后台小锁与自启动设置。
-2. 运行 `outputs/MsgDock-v0.7.0/MsgDock-Windows-v0.7.0.exe`；首次防火墙提示只允许专用网络。
+1. 安装 `outputs/MsgDock-v0.7.6/MsgDock-Android-v0.7.6-debug.apk`，按使用功能授予权限；打开首页“后台运行教程”，检查本机的电池、后台小锁与自启动设置。
+2. 退出旧 Windows 客户端后，运行 `outputs/MsgDock-v0.7.6/MsgDock-Windows-v0.7.6.exe`；首次防火墙提示只允许专用网络。旧配置和历史保留。
 3. Android 和 Windows/Web 使用同一个账号登录。
 4. Android 收到真实 SMS 后会先入队，再分别走 LAN 和互联网路径。
 5. 旧 LAN 扫描、6 位码和旧云配对仍可继续使用，不要求重新配对。
@@ -135,7 +143,7 @@ Windows：
 Set-Location windows
 go test ./...
 go vet ./...
-go build -buildvcs=false -trimpath -ldflags="-s -w -H=windowsgui" -o ..\outputs\MsgDock-v0.7.0\MsgDock-Windows-v0.7.0.exe .
+go build -buildvcs=false -trimpath -ldflags="-s -w -H=windowsgui" -o ..\outputs\MsgDock-v0.7.6\MsgDock-Windows-v0.7.6.exe .
 ```
 
 Cloudflare：

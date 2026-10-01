@@ -19,7 +19,7 @@ const pkg = 'com.xgy.lansms';
 const apk = path.resolve(process.argv[2] || '');
 assert(process.argv[2] && fs.existsSync(apk), 'Usage: node tools/test-android-ui-mcp.cjs <apk> [permissions|lifecycle|inbox|guide]');
 const scenario = process.argv[3] || 'permissions';
-assert(['permissions', 'lifecycle', 'inbox', 'guide'].includes(scenario));
+assert(['permissions', 'lifecycle', 'inbox', 'guide', 'layout', 'layout-rotation'].includes(scenario));
 const output = path.join(root, 'build', 'android-ui-' + new Date().toISOString().replace(/[:.]/g, '-'));
 fs.mkdirSync(output, { recursive: true });
 const report = { device: serial, apk, scenario, checks: [], screenshots: [], passed: false };
@@ -110,6 +110,79 @@ async function waitForText(value) {
         await delay(1000);
     }
     throw new Error('Expected live state missing: ' + value);
+}
+
+async function layout() {
+    await call('mobile_install_app', { device: serial, path: apk });
+    await call('mobile_launch_app', { device: serial, packageName: pkg });
+    await delay(700);
+    let elements = await tree();
+    const byId = (list, id) => list.find(e => e.identifier === pkg + ':id/' + id);
+    const bottom = e => e.coordinates.y + e.coordinates.height;
+    const scroll = byId(elements, 'main_scroll');
+    const status = elements.find(e => e.identifier === 'android:id/statusBarBackground');
+    const navigation = elements.find(e => e.identifier === 'android:id/navigationBarBackground');
+    const title = elements.find(e => e.text === 'MsgDock');
+    assert(scroll && title && status && navigation);
+    assert(scroll.coordinates.y >= bottom(status));
+    assert(bottom(scroll) <= navigation.coordinates.y);
+    assert(title.coordinates.y >= bottom(status));
+    const activity = adb('shell', 'dumpsys', 'activity', 'activities');
+    fs.writeFileSync(path.join(output, 'activity-layout.txt'), activity);
+    const app = activity.slice(activity.indexOf('com.xgy.lansms'));
+    assert(app.includes('resizeMode=RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION'));
+    assert(app.indexOf('areBoundsLetterboxed=false') < app.indexOf('type=home'));
+    await screenshot('layout-fullscreen');
+    passed('SDK manifest defaults permit fullscreen; content is inside status/navigation safe bounds');
+
+    await tap(byId(elements, 'edit_account_password'));
+    await delay(700);
+    elements = await tree();
+    const keyboardScroll = byId(elements, 'main_scroll');
+    const password = byId(elements, 'edit_account_password');
+    assert(password?.focused && keyboardScroll.coordinates.height < scroll.coordinates.height);
+    assert(bottom(password) <= bottom(keyboardScroll));
+    await screenshot('layout-keyboard');
+    await call('mobile_press_button', { device: serial, button: 'BACK' });
+    await delay(400);
+    elements = await tree();
+    assert.equal(byId(elements, 'main_scroll').coordinates.height, scroll.coordinates.height);
+    passed('Opening the keyboard scrolls password into view; dismissing it restores full content height');
+
+    await layoutRotation();
+}
+
+async function waitLayoutOrientation(landscape) {
+    for (let i = 0; i < 12; i++) {
+        const elements = await tree();
+        const content = elements.find(e => e.identifier === 'android:id/content');
+        if (content && (content.coordinates.width > content.coordinates.height) === landscape) return;
+        await delay(500);
+    }
+    throw new Error('MCP rotation setting did not reach the actual app layout');
+}
+
+async function layoutRotation() {
+    originalFontScale = adb('shell', 'settings', 'get', 'system', 'font_scale');
+    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3');
+    await call('mobile_set_orientation', { device: serial, orientation: 'landscape' });
+    rotated = true;
+    await waitLayoutOrientation(true);
+    await reveal('登录');
+    let elements = await tree();
+    assert(elements.find(e => e.identifier === pkg + ':id/btn_account_login'));
+    await screenshot('layout-landscape-large-font');
+    passed('Large-font landscape keeps the account form scrollable and login reachable');
+    await call('mobile_set_orientation', { device: serial, orientation: 'portrait' });
+    await waitLayoutOrientation(false);
+    rotated = false;
+    adb('shell', 'settings', 'put', 'system', 'font_scale', originalFontScale === 'null' ? '1.0' : originalFontScale);
+    await tapText('后台运行教程 · 电池 / 小锁 / 自启动', 'down');
+    elements = await waitForText('后台运行教程');
+    assert(elements.find(e => e.text === '返回'));
+    await screenshot('layout-guide');
+    await tapText('返回');
+    passed('Background guide uses the same safe layout and returns to the home screen');
 }
 
 async function guide() {
@@ -358,6 +431,16 @@ async function inbox() {
         assert(adb('emu', 'avd', 'name').includes('MsgDock_Codex_API34'));
         assert.equal(adb('shell', 'getprop', 'sys.boot_completed'), '1');
         report.server = client.getServerVersion();
+        if (scenario === 'layout-rotation') {
+            await layoutRotation();
+            report.passed = true;
+            return;
+        }
+        if (scenario === 'layout') {
+            await layout();
+            report.passed = true;
+            return;
+        }
         if (scenario === 'guide') {
             await guide();
             report.passed = true;

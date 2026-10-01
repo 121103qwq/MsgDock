@@ -1,6 +1,6 @@
 # Codex / Zcode 交接板
 
-更新时间：2026-09-06
+更新时间：2026-10-01
 
 ## 使用方法
 
@@ -12,7 +12,7 @@
 
 | Agent | 状态 | 本轮任务 | 独占文件/目录 | 开始时间 |
 |---|---|---|---|---|
-| Codex | DONE | Android v0.7.5 后台运行教程、模拟器验证及网站下载交付完成 | 无 | 2026-09-06 |
+| Codex | IN_PROGRESS | 用户已授权发布 Android/Windows v0.7.6 预览版及网站下载，保留真机待验项 | 本轮已有 UI/通知改动、app/build.gradle、windows/main.go、web-ui/index.html、tools/test-web-ui.mjs、AGENTS.md、README.md、DESIGN.md、BUG.md、HANDOFF.md、DELIVERY-v0.7.6.md | 2026-10-01 |
 | Zcode | IDLE | 无 | 无 | - |
 
 认领规则：
@@ -42,6 +42,27 @@
 | P2 | 设计 ACK 后云历史浏览/恢复 | 先只改 `DESIGN.md` | 用户确认需求与保留策略 |
 
 ## 交接记录
+
+### 2026-10-01 / Codex / DONE — UI、通知与账号接收空闲等待（仅本地）
+
+- 用户澄清“公号”是“降低功耗”；“发送”结合上下文按发送者与短信正文处理，不增加发送短信功能。继续复用现有 MsgDock 仓库和 maintenance/shared-workspace 分支，未新建远端仓库。
+- Android：SDK 打包的 uses-sdk 改为插入 application 之前，修复兼容留白；新增 WindowLayout，由根容器统一处理系统栏、挖孔与键盘边距。主页面和教程页复用，键盘出现时滚动到输入焦点。未覆盖 Zcode 的主题或原有功能。
+- 省电：ReceiverService 未登录、未启用账号接收或需重新认证时改为事件等待；设置与网络变化唤醒，并以版本计数防止丢失通知。原 SMS 广播上传、Outbox 重试和协议未改。开启账号接收后仍为 3 秒轮询；服务器推送尚未实现，不能将空闲等待宣传为完整推送或长期功耗验收。
+- Windows：取消 urgent/long，使用普通短时静音 Toast；固定 Tag/Group 替换同一张卡片，10 秒内抑制重复横幅。历史补齐静默，近期明确验证码自动复制；原生失败才使用节流托盘兜底，手动复制成功不再新增气泡。复用现有通知注册、激活回调和落盘/ACK 语义，补充小型 WinRT 绑定，无新增依赖。
+- 验证：最终 Go 全套 test、vet 通过，GUI 构建成功且 PE subsystem 为 2。原生 WinRT 属性测试通过；隔离 QA AppID 实际投递 3 次，通知中心保留 1 张卡片，测试注册与历史已清理。策略测试覆盖 20 条连续消息、历史/未来时间、失败重试、验证码识别和去重。真实客户端横幅、按钮激活和实际剪贴板写入尚未端到端验收，未覆盖用户剪贴板或启动其客户端。
+- Android SDK 构建、59 项 JVM、v2/v3 签名通过，Gradle lint 未运行。独立 Android 14 MCP 确认窗口不再 letterbox；全屏、键盘焦点与收起恢复见 build/android-ui-2026-10-01T08-50-31-157Z/result.json。该首轮报告的横屏断言误判，原报告保留；真实大字体横屏及教程验证以 build/android-ui-2026-10-01T08-52-56-992Z/result.json 和 2400×1080 截图为准。
+- 空闲观察：独立模拟器内开启接收但未登录，账号循环线程在 7 秒观察窗内的上下文切换计数不变（voluntary 3、nonvoluntary 1）。这只支持没有每 3 秒定时唤醒，不代表耗电量或真机后台验收。检查后通过 MCP 停止接收，恢复竖屏和 font_scale=1.0；崩溃日志为空。独立模拟器和 5038 ADB 已关闭，helper Status 的两项 PID 均为空，未操作其他设备。
+- 候选仅位于 build/ui-notification-candidate/，未提升版本或覆盖正式 outputs。APK SHA-256：FC5A9AF9F6DD6A154C8878257863DF5F08C68B7E65F2158C5F21BEFFFAA6F0EE；Windows EXE：C33E4D07A0621D92EBC7597F5328DB017F23F768FFE983C8A22085881593945C。旧签名与包名保留。
+- 需求—证据 audit 未判为整体完成：剪贴板交互只有实现/策略证据；真机、服务器推送和发布证据缺失，UI/省电摘要置信不足。主代理核对具体模拟器与原生测试记录，保留上述有限结论，不把本地通过当成真实设备或线上交付。
+- 本轮没有提交、推送、创建 PR/Release、合并或部署。网站仍为 Android v0.7.5、Windows v0.7.0；发布须获得当前任务授权，并一并提供安装包、源码与 SHA-256 清单，更新对应网站链接和实际下载验哈希。未跟踪 MainActivity.java.backup 原样保留。
+- 防重复错误：SDK-only manifest 必须先写 uses-sdk；MCP 旋转操作返回成功不等于画面已旋转，断言须等待实际宽高并查截图。Go 命令从 windows/ 执行，本机可用路径为 D:/DevTools/Scoop/apps/go123/1.23.12/bin/go.exe；rg 文件通配符用 -g，不将 windows/*.go 当作 Windows 路径传入。
+
+### 2026-09-06 / Codex / DONE — 开发目录接入现有 Git 仓库
+
+- 已现场确认远端为 `https://github.com/121103qwq/MsgDock.git`，默认分支 `main`；没有新建远端仓库。
+- 在本目录初始化 `.git/` 并 fetch 现有分支/标签；本地工作分支为 `maintenance/shared-workspace`，基于 `origin/release/msgdock-v0.7.5` 的 `f23e2dd`，保留完整发布历史。仅 mixed reset 建立索引基线，没有 checkout 覆盖工作文件。
+- 核对结果：除本轮 HANDOFF 记录外，全部已跟踪文件与该远端基线一致。现有未跟踪 `app/src/main/java/com/xgy/lansms/MainActivity.java.backup` 原样保留，不加入提交或源码发布包；local.properties、构建日志及 outputs 产物已被忽略。
+- 本轮未提交、推送、合并 PR、创建 Release 或部署网站；发布快照未修改。今后仍只在本目录开发，开工前刷新认领。
 
 ### 2026-09-06 / Codex / DONE — Android v0.7.5 后台运行教程
 

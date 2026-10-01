@@ -47,10 +47,10 @@ func TestToastValueRoundTrip(t *testing.T) {
 	}
 }
 
-func TestSMSNotificationUsesUrgentWindowsScenario(t *testing.T) {
+func TestSMSNotificationUsesNormalQuietScenario(t *testing.T) {
 	xml := buildSMSNotificationXML(SMS{From: "10086", Text: "验证码 919191"})
-	if !strings.Contains(xml, `scenario="urgent"`) {
-		t.Fatalf("notification is not urgent: %s", xml)
+	if strings.Contains(xml, `scenario=`) || strings.Contains(xml, `duration="long"`) || !strings.Contains(xml, `silent="true"`) {
+		t.Fatalf("notification should be ordinary, short and quiet: %s", xml)
 	}
 	if !strings.Contains(xml, "复制验证码") || !strings.Contains(xml, "复制全文") {
 		t.Fatalf("notification actions missing: %s", xml)

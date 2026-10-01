@@ -27,8 +27,8 @@
 
 ## 组件基线
 
-- Android：`app/`，v0.7.5（versionCode 15）。
-- Windows：`windows/`，v0.7.0；内部配置目录和通知 AppID 仍保留旧标识以兼容升级。
+- Android：`app/`，v0.7.6（versionCode 16）。
+- Windows：`windows/`，v0.7.6；内部配置目录和通知 AppID 仍保留旧标识以兼容升级。
 - Cloudflare：`cloudflare/`，v0.7.0 账号/D1/Web 与旧 v0.6.0 Relay 共存。
 - 协议：`PROTOCOL_V2.md` 与 `PROTOCOL_V2_TEST_VECTOR.json`。
 
@@ -44,7 +44,7 @@
 Set-Location windows
 go test ./...
 go vet ./...
-go build -buildvcs=false -trimpath -ldflags="-s -w -H=windowsgui" -o ..\outputs\MsgDock-v0.7.0\MsgDock-Windows-v0.7.0.exe .
+go build -buildvcs=false -trimpath -ldflags="-s -w -H=windowsgui" -o ..\outputs\MsgDock-v0.7.6\MsgDock-Windows-v0.7.6.exe .
 
 # Cloudflare
 Set-Location cloudflare

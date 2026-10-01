@@ -21,6 +21,8 @@ test('download links match the Android build and label each platform version sep
   assert(android[2].includes(`Android v${version}`));
   assert(source[1].endsWith(`/v${version}/MsgDock-source-v${version}.zip`));
   const windowsVersion=windows[1].match(/MsgDock-Windows-v([\d.]+)\.exe$/)[1];
+  const windowsMain=readFileSync(new URL('../windows/main.go',import.meta.url),'utf8');
+  assert.equal(windowsVersion,windowsMain.match(/appVersion\s*=\s*"([^"]+)"/)[1]);
   assert(windows[2].includes(`Windows v${windowsVersion}`));
   assert(html.includes(`/v${windowsVersion}/SHA256SUMS-v${windowsVersion}.txt`));
   assert(html.includes(`/v${version}/SHA256SUMS-v${version}.txt`));
