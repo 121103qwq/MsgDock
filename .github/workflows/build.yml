@@ -1,0 +1,66 @@
+name: Build MsgDock preview
+on:
+  workflow_dispatch:
+
+jobs:
+  android-and-cloudflare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK 36
+        run: yes | sdkmanager "platforms;android-36" "build-tools;36.0.0" >/dev/null
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Test, lint, and build Android APK
+        run: gradle --no-daemon clean :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: cloudflare/package-lock.json
+      - name: Test Cloudflare Relay
+        working-directory: cloudflare
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm exec wrangler deploy -- --dry-run
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MsgDock-Android-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: windows/go.mod
+          cache-dependency-path: windows/go.sum
+      - name: Build Windows single EXE
+        working-directory: windows
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+        run: |
+          go test ./...
+          go vet ./...
+          go build -buildvcs=false -trimpath -ldflags="-s -w -H=windowsgui" -o ../MsgDock-Windows.exe .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MsgDock-Windows-x64
+          path: MsgDock-Windows.exe
+          if-no-files-found: error
